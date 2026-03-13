@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌳 Our Family Tree</title>
-  <meta name="description" content="An interactive family tree — explore generations through tree, radial, card, and timeline views.">
+  <title>🌳 Ava's Family Tree</title>
+  <meta name="description" content="Ava Michele Etwaroo's interactive family tree — explore generations through tree, radial, card, and timeline views.">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Our Family Tree">
-  <meta property="og:description" content="An interactive family tree — explore generations through multiple views.">
+  <meta property="og:title" content="Ava's Family Tree">
+  <meta property="og:description" content="Ava's interactive family tree — explore generations through multiple views.">
   <meta property="og:type" content="website">
 
   <!-- Fonts -->
@@ -654,18 +654,46 @@ body::before {
   .search-input:focus { width: 180px; }
   .logo-text { font-size: 17px; }
 
+  .view-container { padding: 16px; }
+
   .cards-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
+  .person-card { padding: 14px; }
+  .person-card .card-photo { width: 56px; height: 56px; }
+  .person-card .card-name { font-size: 15px; }
 
   .modal-content { padding: 24px; margin: 12px; }
   .modal-name { font-size: 24px; }
+  .modal-photo-wrap { width: 90px; height: 90px; }
+
+  /* Radial — allow horizontal scroll on small screens */
+  #radial-canvas { overflow-x: auto; justify-content: flex-start; }
+  #radial-canvas svg { min-width: 400px; }
+
+  /* Timeline — tighter on mobile */
+  #view-timeline .timeline-canvas { padding: 20px 0; }
+
+  /* Cards toolbar wrapping */
+  .cards-toolbar { gap: 8px; }
+  .filter-btn { padding: 5px 10px; font-size: 11px; }
 }
 
 @media (max-width: 480px) {
   .header-actions { gap: 8px; }
   .logo-text { display: none; }
+
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+
+  .view-nav { padding: 3px; gap: 2px; }
+  .view-tab { padding: 7px 10px; }
+
+  .modal-content { padding: 20px 16px; }
+  .modal-name { font-size: 22px; }
 }
 
 /* ═══ UTILITY ═══ */
@@ -690,7 +718,7 @@ body::before {
     <div class="header-inner">
       <a href="#" class="logo" aria-label="Home">
         <span class="logo-icon">🌳</span>
-        <span class="logo-text">Our Family Tree</span>
+        <span class="logo-text">Ava's Family Tree</span>
       </a>
 
       <nav class="view-nav" role="tablist" aria-label="View selector">
@@ -805,7 +833,7 @@ body::before {
 
   <!-- ═══ FOOTER ═══ -->
   <footer class="site-footer">
-    <p>Made with 🌳 for our family</p>
+    <p>Made with 🌳 for Ava</p>
   </footer>
 
   <!-- App Scripts -->
@@ -1120,15 +1148,17 @@ body::before {
   }
 
   function getPlaceholderAvatar(member) {
-    // Generate a simple SVG data URL placeholder
     const colors = {
       self: '#d4a84b',
       mother: '#7a9e7e', father: '#5d7fa3',
       grandmother: '#7a9e7e', grandfather: '#5d7fa3',
+      great_grandmother: '#8aae8e', great_grandfather: '#6d8fb3',
+      aunt: '#9ab89e', uncle: '#7d99b3',
+      cousin: '#b0a080', sibling: '#c4956a',
     };
-    const color = colors[member.relation] || '#b86e3a';
+    const color = colors[member.relation] || (member.side === 'maternal' ? '#7a9e7e' : member.side === 'paternal' ? '#5d7fa3' : '#b86e3a');
     const initial = member.name.charAt(0).toUpperCase();
-    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" rx="40" fill="${color}" opacity="0.15"/><text x="40" y="44" text-anchor="middle" font-family="Georgia,serif" font-size="28" font-weight="600" fill="${color}">${initial}</text></svg>`)}`;
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" rx="60" fill="${color}" opacity="0.15"/><text x="60" y="66" text-anchor="middle" font-family="Georgia,serif" font-size="42" font-weight="600" fill="${color}">${initial}</text></svg>`)}`;
   }
 
   // ═══ PERSON MODAL ═══
@@ -1152,11 +1182,29 @@ body::before {
     photoEl.alt = person.name;
 
     document.getElementById('modal-name').textContent = person.name;
-    document.getElementById('modal-relation').textContent = formatRelation(person.relation);
 
-    setModalDetail('modal-born', 'Born', person.born ? `${person.born}${person.died ? ' — ' + person.died : ''}` : '');
+    // Build relation subtitle with side
+    let relationText = formatRelation(person.relation);
+    if (person.side) {
+      relationText += ' · ' + person.side.charAt(0).toUpperCase() + person.side.slice(1) + ' side';
+    }
+    document.getElementById('modal-relation').textContent = relationText;
+
+    // Born / Died with year extraction for clean display
+    let lifespan = '';
+    if (person.born) {
+      const birthYear = extractYear(person.born);
+      lifespan = birthYear ? String(birthYear) : person.born;
+      if (person.died) {
+        const deathYear = extractYear(person.died);
+        lifespan += ' — ' + (deathYear ? String(deathYear) : person.died);
+      } else if (person.relation !== 'self') {
+        lifespan += ' — present';
+      }
+    }
+    setModalDetail('modal-born', 'Lifespan', lifespan);
     setModalDetail('modal-birthplace', 'Birthplace', person.birthplace || '');
-    setModalDetail('modal-bio', 'Bio', person.bio || '');
+    setModalDetail('modal-bio', 'About', person.bio || '');
     setModalDetail('modal-fact', 'Fun Fact', person.fun_fact || '');
 
     modal.classList.add('open');
@@ -1345,7 +1393,6 @@ body::before {
         const x = Math.sin(angle) * midR;
         const y = -Math.cos(angle) * midR;
         let rotate = (angle * 180 / Math.PI) - 90;
-        // Flip text on the bottom half so it reads left-to-right
         if (angle > Math.PI) rotate += 180;
         return `translate(${x},${y}) rotate(${rotate})`;
       })
@@ -1354,17 +1401,31 @@ body::before {
       .attr('font-family', 'Outfit, sans-serif')
       .attr('font-size', d => {
         const arcSpan = d.x1 - d.x0;
-        if (arcSpan < 0.15) return '7px';
-        if (d.depth <= 1) return '11px';
-        if (d.depth <= 2) return '9px';
-        return '8px';
+        // Scale font based on available arc space
+        if (d.depth <= 1) return arcSpan > 0.8 ? '12px' : arcSpan > 0.4 ? '11px' : '9px';
+        if (d.depth <= 2) return arcSpan > 0.4 ? '10px' : '8px';
+        return arcSpan > 0.3 ? '9px' : '7px';
       })
       .attr('fill', '#fff')
+      .attr('font-weight', d => d.depth <= 1 ? '500' : '400')
       .attr('pointer-events', 'none')
       .text(d => {
         const arcSpan = d.x1 - d.x0;
-        const maxChars = Math.max(4, Math.floor(arcSpan * ringWidth / 6));
-        return d.data.name.length > maxChars ? d.data.name.slice(0, maxChars - 1) + '…' : d.data.name;
+        const availableWidth = arcSpan * (centerRadius + (d.depth - 0.5) * ringWidth);
+        // Use first name + last name, or just first name if tight
+        const parts = d.data.name.split(' ');
+        const firstName = parts[0];
+        const lastName = parts[parts.length - 1];
+        const shortName = firstName + ' ' + lastName;
+        const fullName = d.data.name;
+
+        // Approximate chars that fit (roughly 6px per char)
+        const maxChars = Math.floor(availableWidth / 5.5);
+
+        if (fullName.length <= maxChars) return fullName;
+        if (shortName.length <= maxChars && parts.length > 2) return shortName;
+        if (firstName.length <= maxChars) return firstName;
+        return firstName.slice(0, maxChars - 1) + '…';
       });
 
     // Center label for Ava
