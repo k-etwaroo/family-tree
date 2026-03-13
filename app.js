@@ -7,6 +7,13 @@
 (function () {
   'use strict';
 
+  // ─── Config ───
+  const SHEETS_CONFIG = {
+    apiKey: 'AIzaSyBVnfX5ld_hrU9FWL9F8Pe68jf4ZjyrA3U',
+    sheetId: '1hqwlHomJrpSjRpof0dux_4ojRshpHD50s6b33P61Qmc',
+    sheetName: 'family',  // Change if your tab has a different name
+  };
+
   // ─── State ───
   let familyData = null;
   let currentView = 'tree';
@@ -28,19 +35,96 @@
     await loadData();
   }
 
-  // ═══ DATA LOADING ═══
+  // ═══ DATA LOADING — Google Sheets API ═══
   async function loadData() {
+    try {
+      // Try Google Sheets API first (live data)
+      const members = await fetchFromGoogleSheets();
+      if (members && members.length > 0) {
+        console.log(`Loaded ${members.length} members from Google Sheets`);
+        allMembers = members;
+        familyData = {
+          members: allMembers,
+          root: buildTreeFromFlat(allMembers),
+          events: buildEventsFromMembers(allMembers)
+        };
+        renderCurrentView();
+        return;
+      }
+    } catch (err) {
+      console.warn('Google Sheets fetch failed, trying local JSON...', err.message);
+    }
+
+    // Fallback to local family.json
     try {
       const response = await fetch('data/family.json');
       if (!response.ok) throw new Error('No data file found');
-      familyData = await response.json();
-      allMembers = familyData.members || [];
+      const data = await response.json();
+      allMembers = data.members || [];
+      familyData = {
+        members: allMembers,
+        root: buildTreeFromFlat(allMembers),
+        events: data.events || buildEventsFromMembers(allMembers)
+      };
+      console.log(`Loaded ${allMembers.length} members from local JSON`);
       renderCurrentView();
     } catch (err) {
-      console.log('Family data not loaded yet — showing sample data.', err.message);
+      console.log('No local data either — showing sample data.', err.message);
       loadSampleData();
       renderCurrentView();
     }
+  }
+
+  async function fetchFromGoogleSheets() {
+    const { apiKey, sheetId, sheetName } = SHEETS_CONFIG;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}?key=${apiKey}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `Sheets API returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rows = data.values;
+    if (!rows || rows.length < 2) return [];
+
+    // First row = headers, remaining rows = data
+    const headers = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    const members = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      // Build object from headers + row values
+      const obj = {};
+      headers.forEach((header, idx) => {
+        obj[header] = (row[idx] || '').trim();
+      });
+
+      // Skip rows without a name
+      if (!obj.name) continue;
+
+      // Parse into our member format
+      members.push({
+        id: parseInt(obj.id) || i,
+        name: obj.name || '',
+        relation: (obj.relation || '').toLowerCase(),
+        side: (obj.side || '').toLowerCase(),
+        generation: parseInt(obj.generation) || 0,
+        parent_id: obj.parent_id ? parseInt(obj.parent_id) : null,
+        spouse_id: obj.spouse_id ? parseInt(obj.spouse_id) : null,
+        born: obj.born || '',
+        died: obj.died || '',
+        birthplace: obj.birthplace || '',
+        bio: obj.bio || '',
+        fun_fact: obj.fun_fact || '',
+        photo: obj.photo || '',
+      });
+    }
+
+    return members;
   }
 
   function loadSampleData() {

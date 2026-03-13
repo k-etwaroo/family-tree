@@ -333,8 +333,58 @@
     if (e.key === 'Enter') unlock();
   });
 
+  // ─── Google Sheets Config ───
+  const SHEETS_CONFIG = {
+    apiKey: 'AIzaSyBVnfX5ld_hrU9FWL9F8Pe68jf4ZjyrA3U',
+    sheetId: '1hqwlHomJrpSjRpof0dux_4ojRshpHD50s6b33P61Qmc',
+    sheetName: 'family',
+  };
+
   // ─── Load ───
   async function loadMembers() {
+    // Try Google Sheets first
+    try {
+      const { apiKey, sheetId, sheetName } = SHEETS_CONFIG;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}?key=${apiKey}`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        const rows = data.values || [];
+        if (rows.length >= 2) {
+          const headers = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+          members = [];
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || !row.length) continue;
+            const obj = {};
+            headers.forEach((h, idx) => { obj[h] = (row[idx] || '').trim(); });
+            if (!obj.name) continue;
+            members.push({
+              id: parseInt(obj.id) || i,
+              name: obj.name,
+              relation: (obj.relation || '').toLowerCase(),
+              side: (obj.side || '').toLowerCase(),
+              generation: parseInt(obj.generation) || 0,
+              parent_id: obj.parent_id ? parseInt(obj.parent_id) : null,
+              spouse_id: obj.spouse_id ? parseInt(obj.spouse_id) : null,
+              born: obj.born || '',
+              died: obj.died || '',
+              birthplace: obj.birthplace || '',
+              bio: obj.bio || '',
+              fun_fact: obj.fun_fact || '',
+              photo: obj.photo || '',
+            });
+          }
+          showToast(`Loaded ${members.length} members from Google Sheets`);
+          renderMembersList();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Sheets API failed, falling back to local JSON', err);
+    }
+
+    // Fallback to local JSON
     try {
       const resp = await fetch('data/family.json');
       const data = await resp.json();
