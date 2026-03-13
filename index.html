@@ -706,6 +706,121 @@ body::before {
   clip: rect(0,0,0,0);
   border: 0;
 }
+
+/* Header buttons */
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-warm);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.header-btn:hover {
+  background: var(--accent-light);
+  transform: scale(1.1);
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.stat-card {
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  text-align: center;
+}
+.stat-card .stat-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.stat-card .stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+.stat-card.full-width {
+  grid-column: 1 / -1;
+}
+.stat-card .stat-value.small {
+  font-size: 18px;
+}
+
+/* Print button on radial */
+.radial-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.radial-action-btn {
+  padding: 8px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  background: var(--bg-card);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.radial-action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ═══ DARK MODE ═══ */
+[data-theme="dark"] {
+  --bg:            #1a1714;
+  --bg-warm:       #242019;
+  --bg-card:       #2a2520;
+  --text:          #e8e2d8;
+  --text-secondary:#b0a898;
+  --text-muted:    #7a7368;
+  --accent:        #d4894a;
+  --accent-hover:  #e09a5a;
+  --accent-light:  #3a2e22;
+  --maternal:      #6a9e6e;
+  --maternal-light:#2a3a2a;
+  --paternal:      #5d8fbb;
+  --paternal-light:#1e2a3a;
+  --border:        #3a3530;
+  --border-light:  #302b25;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.25);
+  --shadow-lg:     0 12px 40px rgba(0,0,0,0.35);
+}
+[data-theme="dark"] .site-header {
+  background: rgba(26, 23, 20, 0.92);
+}
+[data-theme="dark"] #dark-mode-btn { font-size: 16px; }
+[data-theme="dark"] body::before { opacity: 0.015; }
+
+/* Print styles */
+@media print {
+  .site-header, .site-footer, .radial-actions, .cards-toolbar { display: none !important; }
+  .view-container { padding: 0 !important; min-height: auto !important; }
+  body { background: #fff !important; }
+  body::before { display: none; }
+}
   </style>
 
   <!-- Favicon -->
@@ -746,6 +861,8 @@ body::before {
           <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
           <div class="search-results" id="search-results"></div>
         </div>
+        <button class="header-btn" id="stats-btn" title="Family Stats">📊</button>
+        <button class="header-btn" id="dark-mode-btn" title="Toggle Dark Mode">🌙</button>
         <a href="admin.html" class="admin-link" title="Admin Panel">⚙️</a>
       </div>
     </div>
@@ -778,6 +895,10 @@ body::before {
     </div>
 
     <div class="view-container" id="view-radial" role="tabpanel">
+      <div class="radial-actions">
+        <button class="radial-action-btn" id="radial-print-btn">🖨️ Print Poster</button>
+        <button class="radial-action-btn" id="radial-reset-btn">↺ Reset Zoom</button>
+      </div>
       <div class="view-loading" id="loading-radial">
         <div class="skeleton-radial">
           <div class="skel-ring r1"></div>
@@ -829,6 +950,16 @@ body::before {
         </div>
       </div>
     </div>
+
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="stats-modal">
+      <div class="modal-content" style="max-width:520px;text-align:left;">
+        <button class="modal-close" aria-label="Close" onclick="document.getElementById('stats-modal').classList.remove('open')">&times;</button>
+        <h2 style="font-family:var(--font-display);font-size:26px;font-weight:700;text-align:center;margin-bottom:4px;">📊 Family Stats</h2>
+        <p style="text-align:center;color:var(--text-muted);font-size:14px;margin-bottom:20px;">A snapshot of Ava's family tree</p>
+        <div id="stats-content"></div>
+      </div>
+    </div>
   </main>
 
   <!-- ═══ FOOTER ═══ -->
@@ -872,6 +1003,9 @@ body::before {
     setupSearch();
     setupModal();
     setupURLRouting();
+    setupDarkMode();
+    setupStats();
+    setupPrint();
     await loadData();
   }
 
@@ -1368,6 +1502,7 @@ body::before {
     }
 
     // Draw arcs
+    let clickTimer = null;
     const arcs = g.selectAll('.radial-arc')
       .data(root.descendants())
       .join('path')
@@ -1376,7 +1511,26 @@ body::before {
       .attr('fill', d => getColor(d))
       .attr('opacity', 0.85)
       .style('cursor', 'pointer')
-      .on('click', (event, d) => openPersonModal(d.data))
+      .on('click', (event, d) => {
+        // Single click = zoom to branch, double click = open modal
+        if (clickTimer) {
+          clearTimeout(clickTimer);
+          clickTimer = null;
+          openPersonModal(d.data);
+        } else {
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            // Zoom into this arc's angular range
+            const angle = (d.x0 + d.x1) / 2;
+            const midR = d.depth === 0 ? 0 : centerRadius + (d.depth - 0.5) * ringWidth;
+            const scale = d.depth === 0 ? 1 : Math.min(2.5, Math.PI / (d.x1 - d.x0 + 0.3));
+            const x = Math.sin(angle) * midR;
+            const y = -Math.cos(angle) * midR;
+            g.transition().duration(600).ease(d3.easeCubicOut)
+              .attr('transform', `translate(${-x * (scale-1)},${-y * (scale-1)}) scale(${scale})`);
+          }, 250);
+        }
+      })
       .on('mouseenter', function() { d3.select(this).attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2); })
       .on('mouseleave', function() { d3.select(this).attr('opacity', 0.85).attr('stroke', 'none'); });
 
@@ -1642,6 +1796,124 @@ body::before {
     });
 
     container.appendChild(wrapper);
+  }
+
+  // ═══ DARK MODE ═══
+  function setupDarkMode() {
+    const btn = document.getElementById('dark-mode-btn');
+    // Restore saved preference
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀️';
+    }
+    btn.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        btn.textContent = '🌙';
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        btn.textContent = '☀️';
+        localStorage.setItem('theme', 'dark');
+      }
+      // Re-render current view since colors changed
+      renderCurrentView();
+    });
+  }
+
+  // ═══ FAMILY STATS ═══
+  function setupStats() {
+    document.getElementById('stats-btn').addEventListener('click', () => {
+      renderStats();
+      document.getElementById('stats-modal').classList.add('open');
+    });
+    document.getElementById('stats-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'stats-modal') e.target.classList.remove('open');
+    });
+  }
+
+  function renderStats() {
+    const container = document.getElementById('stats-content');
+    if (!allMembers.length) {
+      container.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No family data loaded yet.</p>';
+      return;
+    }
+
+    const total = allMembers.length;
+    const maternal = allMembers.filter(m => m.side === 'maternal').length;
+    const paternal = allMembers.filter(m => m.side === 'paternal').length;
+    const generations = Math.max(...allMembers.map(m => m.generation)) + 1;
+
+    // Oldest ancestor
+    const withBirthYear = allMembers.filter(m => extractYear(m.born)).map(m => ({ ...m, birthYear: extractYear(m.born) }));
+    const oldest = withBirthYear.length ? withBirthYear.sort((a, b) => a.birthYear - b.birthYear)[0] : null;
+    const youngest = withBirthYear.length ? withBirthYear.sort((a, b) => b.birthYear - a.birthYear)[0] : null;
+
+    // Year span
+    const yearSpan = oldest && youngest ? youngest.birthYear - oldest.birthYear : 0;
+
+    // Most common first letter
+    const firstNames = allMembers.map(m => m.name.split(' ')[0]);
+    const letterCounts = {};
+    firstNames.forEach(n => { const l = n[0].toUpperCase(); letterCounts[l] = (letterCounts[l] || 0) + 1; });
+    const topLetter = Object.entries(letterCounts).sort((a, b) => b[1] - a[1])[0];
+
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${total}</div>
+          <div class="stat-label">Family Members</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${generations}</div>
+          <div class="stat-label">Generations</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--maternal);">${maternal}</div>
+          <div class="stat-label">Maternal Side</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--paternal);">${paternal}</div>
+          <div class="stat-label">Paternal Side</div>
+        </div>
+        ${oldest ? `
+        <div class="stat-card full-width">
+          <div class="stat-value small">${oldest.name}</div>
+          <div class="stat-label">Oldest Ancestor · Born ${oldest.birthYear}</div>
+        </div>` : ''}
+        <div class="stat-card">
+          <div class="stat-value">${yearSpan}</div>
+          <div class="stat-label">Years of History</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${topLetter ? topLetter[0] : '—'}</div>
+          <div class="stat-label">Most Common Initial (${topLetter ? topLetter[1] : 0})</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ═══ PRINT / POSTER MODE ═══
+  function setupPrint() {
+    const printBtn = document.getElementById('radial-print-btn');
+    const resetBtn = document.getElementById('radial-reset-btn');
+
+    if (printBtn) {
+      printBtn.addEventListener('click', () => {
+        // Switch to radial view if not already
+        switchView('radial');
+        // Small delay for render, then print
+        setTimeout(() => window.print(), 300);
+      });
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        // Re-render radial to reset zoom
+        renderRadial();
+      });
+    }
   }
 
   // ═══ KICK IT OFF ═══
