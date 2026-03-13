@@ -986,13 +986,30 @@ body::before {
     const events = [];
     members.forEach(m => {
       if (m.born) {
-        events.push({ year: parseInt(m.born), type: 'birth', person: m.name, personId: m.id });
+        const year = extractYear(m.born);
+        if (year) events.push({ year, type: 'birth', person: m.name, personId: m.id });
       }
       if (m.died) {
-        events.push({ year: parseInt(m.died), type: 'death', person: m.name, personId: m.id });
+        const year = extractYear(m.died);
+        if (year) events.push({ year, type: 'death', person: m.name, personId: m.id });
       }
     });
     return events.sort((a, b) => a.year - b.year);
+  }
+
+  // Extract a 4-digit year from various date formats
+  function extractYear(dateStr) {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    // Try pure number first
+    if (/^\d{4}$/.test(s)) return parseInt(s);
+    // Look for 4-digit year anywhere in the string
+    const match = s.match(/\b(1[0-9]{3}|20[0-9]{2})\b/);
+    if (match) return parseInt(match[1]);
+    // Try parsing as a date
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.getFullYear();
+    return null;
   }
 
   // ═══ VIEW SWITCHING ═══
@@ -1259,6 +1276,7 @@ body::before {
 
     const size = Math.min(container.clientWidth || 700, window.innerHeight - 200, 700);
     const radius = size / 2;
+    const centerRadius = 50; // Space for Ava's center circle
 
     const svg = d3.select(container)
       .append('svg')
@@ -1266,73 +1284,100 @@ body::before {
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('max-width', size + 'px');
 
+    const g = svg.append('g');
+
     const root = d3.hierarchy(familyData.root, d => d.parents);
 
+    // Use partition but map y values to leave center space
     const partition = d3.partition()
-      .size([2 * Math.PI, radius - 20]);
+      .size([2 * Math.PI, radius]);
 
     partition(root);
+
+    // Remap: root gets center circle, ancestors get outer rings
+    const maxDepth = root.height || 1;
+    const ringWidth = (radius - centerRadius - 10) / maxDepth;
 
     const arc = d3.arc()
       .startAngle(d => d.x0)
       .endAngle(d => d.x1)
-      .innerRadius(d => d.y0)
-      .outerRadius(d => d.y1 - 2)
-      .padAngle(0.02)
-      .padRadius(radius / 2);
+      .innerRadius(d => d.depth === 0 ? 0 : centerRadius + (d.depth - 1) * ringWidth)
+      .outerRadius(d => d.depth === 0 ? centerRadius : centerRadius + d.depth * ringWidth - 3)
+      .padAngle(0.015)
+      .padRadius(radius / 3);
 
-    const maternalColor = d3.scaleLinear().domain([0, 4]).range(['#b86e3a', '#7a9e7e']);
-    const paternalColor = d3.scaleLinear().domain([0, 4]).range(['#b86e3a', '#5d7fa3']);
+    const maternalColor = d3.scaleLinear().domain([0, maxDepth + 1]).range(['#7a9e7e', '#b8d4ba']);
+    const paternalColor = d3.scaleLinear().domain([0, maxDepth + 1]).range(['#5d7fa3', '#a8c4de']);
 
     function getColor(d) {
       if (d.depth === 0) return '#d4a84b';
-      return d.data.side === 'paternal'
-        ? paternalColor(d.depth)
-        : maternalColor(d.depth);
+      if (d.data.side === 'paternal') return paternalColor(d.depth);
+      return maternalColor(d.depth);
     }
 
-    svg.selectAll('.radial-arc')
+    // Draw arcs
+    const arcs = g.selectAll('.radial-arc')
       .data(root.descendants())
       .join('path')
       .attr('class', 'radial-arc')
       .attr('d', arc)
       .attr('fill', d => getColor(d))
-      .attr('opacity', d => d.depth === 0 ? 1 : 0.75)
+      .attr('opacity', 0.85)
       .style('cursor', 'pointer')
       .on('click', (event, d) => openPersonModal(d.data))
-      .append('title')
-      .text(d => d.data.name);
+      .on('mouseenter', function() { d3.select(this).attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2); })
+      .on('mouseleave', function() { d3.select(this).attr('opacity', 0.85).attr('stroke', 'none'); });
 
-    // Labels
-    svg.selectAll('.radial-label')
+    arcs.append('title').text(d => d.data.name);
+
+    // Labels on arcs (skip root — handled separately)
+    g.selectAll('.radial-label')
       .data(root.descendants().filter(d => d.depth > 0))
       .join('text')
       .attr('class', 'radial-label')
       .attr('transform', d => {
         const angle = (d.x0 + d.x1) / 2;
-        const r = (d.y0 + d.y1) / 2;
-        const x = Math.sin(angle) * r;
-        const y = -Math.cos(angle) * r;
-        const rotate = (angle * 180 / Math.PI) - 90 + (angle > Math.PI ? 180 : 0);
+        const midR = centerRadius + (d.depth - 0.5) * ringWidth;
+        const x = Math.sin(angle) * midR;
+        const y = -Math.cos(angle) * midR;
+        let rotate = (angle * 180 / Math.PI) - 90;
+        // Flip text on the bottom half so it reads left-to-right
+        if (angle > Math.PI) rotate += 180;
         return `translate(${x},${y}) rotate(${rotate})`;
       })
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-family', 'Outfit, sans-serif')
-      .attr('font-size', d => d.depth <= 1 ? '11px' : '9px')
+      .attr('font-size', d => {
+        const arcSpan = d.x1 - d.x0;
+        if (arcSpan < 0.15) return '7px';
+        if (d.depth <= 1) return '11px';
+        if (d.depth <= 2) return '9px';
+        return '8px';
+      })
       .attr('fill', '#fff')
       .attr('pointer-events', 'none')
-      .text(d => d.data.name.length > 12 ? d.data.name.slice(0, 10) + '…' : d.data.name);
+      .text(d => {
+        const arcSpan = d.x1 - d.x0;
+        const maxChars = Math.max(4, Math.floor(arcSpan * ringWidth / 6));
+        return d.data.name.length > maxChars ? d.data.name.slice(0, maxChars - 1) + '…' : d.data.name;
+      });
 
-    // Center label
-    svg.append('text')
+    // Center label for Ava
+    g.append('text')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-family', 'Cormorant Garamond, serif')
-      .attr('font-size', '14px')
+      .attr('font-size', '13px')
       .attr('font-weight', '600')
-      .attr('fill', '#2c2419')
-      .text(familyData.root.name);
+      .attr('fill', '#fff')
+      .text(familyData.root.name.split(' ')[0]); // First name only in center
+
+    // Zoom & pan
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 3])
+      .on('zoom', (event) => g.attr('transform', event.transform));
+    svg.call(zoom);
   }
 
   // ─── CARDS VIEW ───
@@ -1403,70 +1448,135 @@ body::before {
     container.innerHTML = '';
 
     const events = familyData.events || buildEventsFromMembers(allMembers);
-    if (events.length === 0) {
-      container.innerHTML = '<p style="text-align:center;color:#9a9184;padding:80px 24px;font-style:italic;">Add birth and death years to your family data to see the timeline.</p>';
+    // Filter out events with no valid year
+    const validEvents = events.filter(e => e.year && !isNaN(e.year));
+
+    if (validEvents.length === 0) {
+      container.innerHTML = '<p style="text-align:center;color:#9a9184;padding:80px 24px;font-style:italic;">Add birth years (e.g. 1962 or 01/05/1962) to your family data to see the timeline.</p>';
       return;
     }
 
-    const minYear = Math.min(...events.map(e => e.year));
-    const maxYear = Math.max(...events.map(e => e.year));
-    const range = maxYear - minYear || 1;
-    const totalHeight = Math.max(600, events.length * 90);
+    const minYear = Math.min(...validEvents.map(e => e.year));
+    const maxYear = Math.max(...validEvents.map(e => e.year));
 
-    // Axis
-    const axis = document.createElement('div');
-    axis.className = 'timeline-axis';
-    axis.style.height = totalHeight + 'px';
-    container.appendChild(axis);
-
-    // Events
-    events.forEach((evt, i) => {
-      const yPos = ((evt.year - minYear) / range) * (totalHeight - 80) + 40;
-      const side = i % 2 === 0 ? 'left' : 'right';
-
-      const eventEl = document.createElement('div');
-      eventEl.className = `timeline-event ${side}`;
-      eventEl.style.top = yPos + 'px';
-
-      eventEl.innerHTML = `
-        <div class="timeline-dot ${evt.type}"></div>
-        <div class="timeline-card">
-          <div class="tc-year">${evt.year}</div>
-          <div class="tc-name">${evt.person}</div>
-          <div class="tc-event">${evt.type === 'birth' ? 'Born' : evt.type === 'death' ? 'Passed away' : evt.type}</div>
-        </div>
-      `;
-
-      eventEl.addEventListener('click', () => {
-        const person = allMembers.find(m => m.id === evt.personId);
-        if (person) openPersonModal(person);
-      });
-
-      container.appendChild(eventEl);
+    // Group events by decade for section headers
+    const decades = {};
+    validEvents.forEach(evt => {
+      const decade = Math.floor(evt.year / 10) * 10;
+      if (!decades[decade]) decades[decade] = [];
+      decades[decade].push(evt);
     });
 
-    // Decade markers
-    const startDecade = Math.floor(minYear / 10) * 10;
-    const endDecade = Math.ceil(maxYear / 10) * 10;
-    for (let decade = startDecade; decade <= endDecade; decade += 10) {
-      const yPos = ((decade - minYear) / range) * (totalHeight - 80) + 40;
-      const marker = document.createElement('div');
-      marker.style.cssText = `
-        position: absolute;
-        left: 50%;
-        top: ${yPos}px;
-        transform: translateX(-50%);
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        color: #9a9184;
-        background: #f7f4ef;
-        padding: 2px 8px;
-        border-radius: 4px;
-        z-index: 2;
+    // Build the timeline as a simple vertical flow — no absolute positioning
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'max-width:600px;margin:0 auto;position:relative;padding:20px 0 40px;';
+
+    // Central line
+    const line = document.createElement('div');
+    line.style.cssText = `
+      position:absolute;
+      left:24px;
+      top:0;
+      bottom:0;
+      width:3px;
+      background:linear-gradient(180deg, var(--accent), var(--maternal));
+      border-radius:2px;
+    `;
+    wrapper.appendChild(line);
+
+    // Sort decades
+    const sortedDecades = Object.keys(decades).map(Number).sort((a, b) => a - b);
+
+    sortedDecades.forEach(decade => {
+      // Decade header
+      const decadeHeader = document.createElement('div');
+      decadeHeader.style.cssText = `
+        position:relative;
+        padding:16px 0 8px 56px;
+        font-family:'JetBrains Mono',monospace;
+        font-size:13px;
+        font-weight:600;
+        color:var(--accent);
+        letter-spacing:0.5px;
       `;
-      marker.textContent = decade + 's';
-      container.appendChild(marker);
-    }
+      decadeHeader.textContent = decade + 's';
+
+      // Dot on the line
+      const decadeDot = document.createElement('div');
+      decadeDot.style.cssText = `
+        position:absolute;
+        left:17px;
+        top:18px;
+        width:17px;
+        height:17px;
+        border-radius:50%;
+        background:var(--accent);
+        border:3px solid var(--bg);
+        z-index:2;
+      `;
+      decadeHeader.appendChild(decadeDot);
+      wrapper.appendChild(decadeHeader);
+
+      // Events in this decade
+      decades[decade].sort((a, b) => a.year - b.year).forEach(evt => {
+        const eventEl = document.createElement('div');
+        eventEl.style.cssText = `
+          position:relative;
+          padding:8px 16px 8px 56px;
+          cursor:pointer;
+          transition:background 0.15s;
+        `;
+        eventEl.addEventListener('mouseenter', () => { eventEl.style.background = 'rgba(184,110,58,0.04)'; });
+        eventEl.addEventListener('mouseleave', () => { eventEl.style.background = 'transparent'; });
+
+        // Small dot on the line
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+          position:absolute;
+          left:20px;
+          top:16px;
+          width:11px;
+          height:11px;
+          border-radius:50%;
+          border:2.5px solid var(--bg);
+          z-index:2;
+          background:${evt.type === 'birth' ? 'var(--maternal)' : evt.type === 'death' ? 'var(--text-muted)' : 'var(--accent)'};
+        `;
+        eventEl.appendChild(dot);
+
+        // Card
+        const card = document.createElement('div');
+        card.style.cssText = `
+          background:var(--bg-card);
+          border:1px solid var(--border-light);
+          border-radius:var(--radius-sm);
+          padding:14px 18px;
+          box-shadow:var(--shadow-sm);
+          transition:box-shadow 0.2s, transform 0.2s;
+        `;
+        eventEl.addEventListener('mouseenter', () => { card.style.boxShadow = 'var(--shadow-md)'; card.style.transform = 'translateX(4px)'; });
+        eventEl.addEventListener('mouseleave', () => { card.style.boxShadow = 'var(--shadow-sm)'; card.style.transform = 'none'; });
+
+        card.innerHTML = `
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px;">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);font-weight:600;">${evt.year}</span>
+            <span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:var(--text);">${evt.person}</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);">${evt.type === 'birth' ? '🌱 Born' : evt.type === 'death' ? '🕊 Passed away' : evt.type}</div>
+        `;
+
+        eventEl.appendChild(card);
+
+        eventEl.addEventListener('click', () => {
+          const person = allMembers.find(m => m.id === evt.personId);
+          if (person) openPersonModal(person);
+        });
+
+        wrapper.appendChild(eventEl);
+      });
+    });
+
+    container.appendChild(wrapper);
   }
 
   // ═══ KICK IT OFF ═══
