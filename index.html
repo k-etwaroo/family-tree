@@ -266,14 +266,103 @@ body::before {
   display: none;
   min-height: calc(100vh - 140px);
   padding: 24px;
-  animation: viewFadeIn 0.35s var(--ease);
 }
-.view-container.active { display: block; }
+.view-container.active {
+  display: block;
+  animation: viewFadeIn 0.4s var(--ease) both;
+}
+.view-container.exiting {
+  display: block;
+  animation: viewFadeOut 0.2s var(--ease) both;
+}
 
 @keyframes viewFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+@keyframes viewFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Cross-view highlighting */
+.person-card.highlighted {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-light), var(--shadow-md) !important;
+  animation: highlightPulse 1.5s ease-in-out;
+}
+.tree-node.highlighted circle {
+  stroke-width: 4px !important;
+  filter: drop-shadow(0 0 8px rgba(184,110,58,0.5)) !important;
+}
+.tree-node.highlighted text { font-weight: 700 !important; }
+@keyframes highlightPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+/* Share toast */
+.share-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--text);
+  color: var(--bg);
+  padding: 12px 24px;
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 999;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+.share-toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Timeline decade expand */
+.decade-section { margin-bottom: 4px; }
+.decade-header {
+  position: relative;
+  padding: 16px 0 8px 56px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+.decade-header:hover { color: var(--accent-hover); }
+.decade-header .decade-toggle {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  transition: transform 0.3s;
+  color: var(--text-muted);
+}
+.decade-section.collapsed .decade-toggle { transform: rotate(-90deg); }
+.decade-section.collapsed .decade-events { display: none; }
+.decade-snapshot {
+  display: none;
+  padding: 4px 0 8px 56px;
+}
+.decade-section.collapsed .decade-snapshot { display: flex; gap: 6px; flex-wrap: wrap; }
+.decade-snap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.decade-snap-chip:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ─── Loading Skeletons ─── */
 .view-loading {
@@ -948,6 +1037,10 @@ body::before {
           <div class="modal-detail" id="modal-bio"></div>
           <div class="modal-detail" id="modal-fact"></div>
         </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:18px;">
+          <button class="radial-action-btn" id="modal-share-btn">🔗 Share Link</button>
+          <button class="radial-action-btn" id="modal-find-btn">🔍 Find in Tree</button>
+        </div>
       </div>
     </div>
 
@@ -1186,6 +1279,18 @@ body::before {
   }
 
   function switchView(view) {
+    if (view === currentView) return;
+
+    const oldContainer = document.getElementById('view-' + currentView);
+    const newContainer = document.getElementById('view-' + view);
+
+    // Animate old view out
+    if (oldContainer && oldContainer.classList.contains('active')) {
+      oldContainer.classList.remove('active');
+      oldContainer.classList.add('exiting');
+      setTimeout(() => oldContainer.classList.remove('exiting'), 200);
+    }
+
     currentView = view;
 
     viewTabs.forEach(t => {
@@ -1193,11 +1298,14 @@ body::before {
       t.setAttribute('aria-selected', t.dataset.view === view);
     });
 
-    viewContainers.forEach(c => {
-      c.classList.toggle('active', c.id === 'view-' + view);
-    });
-
-    renderCurrentView();
+    // Animate new view in after short delay
+    setTimeout(() => {
+      viewContainers.forEach(c => {
+        if (c.id !== 'view-' + view) c.classList.remove('active');
+      });
+      newContainer.classList.add('active');
+      renderCurrentView();
+    }, 180);
   }
 
   function renderCurrentView() {
@@ -1211,17 +1319,96 @@ body::before {
 
   // ═══ URL ROUTING ═══
   function setupURLRouting() {
+    handleRoute();
+    window.addEventListener('hashchange', handleRoute);
+  }
+
+  function handleRoute() {
     const hash = window.location.hash.replace('#/', '');
-    if (['tree', 'radial', 'cards', 'timeline'].includes(hash)) {
-      switchView(hash);
+
+    // Check for person deep link: #/person/3
+    const personMatch = hash.match(/^person\/(\d+)$/);
+    if (personMatch) {
+      const personId = parseInt(personMatch[1]);
+      // Wait for data to load, then show person
+      const tryShow = () => {
+        const person = allMembers.find(m => m.id === personId);
+        if (person) {
+          openPersonModal(person);
+          highlightPerson(personId);
+        }
+      };
+      if (allMembers.length) tryShow();
+      else setTimeout(tryShow, 1000);
+      return;
     }
 
-    window.addEventListener('hashchange', () => {
-      const h = window.location.hash.replace('#/', '');
-      if (['tree', 'radial', 'cards', 'timeline'].includes(h)) {
-        switchView(h);
+    // View routing
+    if (['tree', 'radial', 'cards', 'timeline'].includes(hash)) {
+      if (currentView !== hash) switchView(hash);
+    }
+  }
+
+  // ═══ CROSS-VIEW HIGHLIGHTING ═══
+  let highlightedPersonId = null;
+
+  function highlightPerson(personId) {
+    highlightedPersonId = personId;
+
+    // Highlight in cards view
+    document.querySelectorAll('.person-card').forEach(card => {
+      card.classList.remove('highlighted');
+    });
+    const cards = document.querySelectorAll('.person-card');
+    cards.forEach(card => {
+      // Find matching card by checking inner text
+      const person = allMembers.find(m => m.id === personId);
+      if (person && card.querySelector('.card-name')?.textContent === person.name) {
+        card.classList.add('highlighted');
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
+
+    // Highlight in tree view
+    document.querySelectorAll('.tree-node').forEach(node => {
+      node.classList.remove('highlighted');
+    });
+    const treeNodes = document.querySelectorAll('.tree-node');
+    treeNodes.forEach(node => {
+      const d = d3.select(node).datum();
+      if (d && d.data && d.data.id === personId) {
+        node.classList.add('highlighted');
+      }
+    });
+
+    // Clear highlight after 3 seconds
+    setTimeout(() => {
+      document.querySelectorAll('.highlighted').forEach(el => el.classList.remove('highlighted'));
+      highlightedPersonId = null;
+    }, 3000);
+  }
+
+  // ═══ SHARE PERSON LINK ═══
+  function sharePersonLink(person) {
+    const url = window.location.origin + window.location.pathname + '#/person/' + person.id;
+    navigator.clipboard.writeText(url).then(() => {
+      showShareToast('Link copied for ' + person.name.split(' ')[0] + '!');
+    }).catch(() => {
+      showShareToast('URL: ' + url);
+    });
+  }
+
+  function showShareToast(msg) {
+    let toast = document.getElementById('share-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'share-toast';
+      toast.className = 'share-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
   // ═══ SEARCH ═══
@@ -1340,6 +1527,21 @@ body::before {
     setModalDetail('modal-birthplace', 'Birthplace', person.birthplace || '');
     setModalDetail('modal-bio', 'About', person.bio || '');
     setModalDetail('modal-fact', 'Fun Fact', person.fun_fact || '');
+
+    // Wire up modal action buttons
+    const shareBtn = document.getElementById('modal-share-btn');
+    const findBtn = document.getElementById('modal-find-btn');
+    if (shareBtn) {
+      shareBtn.onclick = () => sharePersonLink(person);
+    }
+    if (findBtn) {
+      findBtn.onclick = () => {
+        modal.classList.remove('open');
+        switchView('tree');
+        window.location.hash = '#/tree';
+        setTimeout(() => highlightPerson(person.id), 400);
+      };
+    }
 
     modal.classList.add('open');
   }
@@ -1667,18 +1869,14 @@ body::before {
     container.innerHTML = '';
 
     const events = familyData.events || buildEventsFromMembers(allMembers);
-    // Filter out events with no valid year
     const validEvents = events.filter(e => e.year && !isNaN(e.year));
 
     if (validEvents.length === 0) {
-      container.innerHTML = '<p style="text-align:center;color:#9a9184;padding:80px 24px;font-style:italic;">Add birth years (e.g. 1962 or 01/05/1962) to your family data to see the timeline.</p>';
+      container.innerHTML = '<p style="text-align:center;color:#9a9184;padding:80px 24px;font-style:italic;">Add birth years to your family data to see the timeline.</p>';
       return;
     }
 
-    const minYear = Math.min(...validEvents.map(e => e.year));
-    const maxYear = Math.max(...validEvents.map(e => e.year));
-
-    // Group events by decade for section headers
+    // Group events by decade
     const decades = {};
     validEvents.forEach(evt => {
       const decade = Math.floor(evt.year / 10) * 10;
@@ -1686,113 +1884,87 @@ body::before {
       decades[decade].push(evt);
     });
 
-    // Build the timeline as a simple vertical flow — no absolute positioning
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'max-width:600px;margin:0 auto;position:relative;padding:20px 0 40px;';
 
     // Central line
     const line = document.createElement('div');
-    line.style.cssText = `
-      position:absolute;
-      left:24px;
-      top:0;
-      bottom:0;
-      width:3px;
-      background:linear-gradient(180deg, var(--accent), var(--maternal));
-      border-radius:2px;
-    `;
+    line.style.cssText = 'position:absolute;left:24px;top:0;bottom:0;width:3px;background:linear-gradient(180deg, var(--accent), var(--maternal));border-radius:2px;';
     wrapper.appendChild(line);
 
-    // Sort decades
     const sortedDecades = Object.keys(decades).map(Number).sort((a, b) => a - b);
 
     sortedDecades.forEach(decade => {
-      // Decade header
-      const decadeHeader = document.createElement('div');
-      decadeHeader.style.cssText = `
-        position:relative;
-        padding:16px 0 8px 56px;
-        font-family:'JetBrains Mono',monospace;
-        font-size:13px;
-        font-weight:600;
-        color:var(--accent);
-        letter-spacing:0.5px;
-      `;
-      decadeHeader.textContent = decade + 's';
+      const section = document.createElement('div');
+      section.className = 'decade-section';
 
-      // Dot on the line
-      const decadeDot = document.createElement('div');
-      decadeDot.style.cssText = `
-        position:absolute;
-        left:17px;
-        top:18px;
-        width:17px;
-        height:17px;
-        border-radius:50%;
-        background:var(--accent);
-        border:3px solid var(--bg);
-        z-index:2;
-      `;
-      decadeHeader.appendChild(decadeDot);
-      wrapper.appendChild(decadeHeader);
+      // Decade header (clickable to collapse)
+      const header = document.createElement('div');
+      header.className = 'decade-header';
+      header.innerHTML = `<div style="position:absolute;left:17px;top:18px;width:17px;height:17px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);z-index:2;"></div>${decade}s <span class="decade-toggle">▼</span>`;
+      header.addEventListener('click', () => {
+        section.classList.toggle('collapsed');
+      });
+      section.appendChild(header);
 
-      // Events in this decade
+      // Snapshot chips (visible when collapsed)
+      const snapshot = document.createElement('div');
+      snapshot.className = 'decade-snapshot';
+      decades[decade].sort((a, b) => a.year - b.year).forEach(evt => {
+        const chip = document.createElement('span');
+        chip.className = 'decade-snap-chip';
+        chip.textContent = evt.person.split(' ')[0];
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const person = allMembers.find(m => m.id === evt.personId);
+          if (person) openPersonModal(person);
+        });
+        snapshot.appendChild(chip);
+      });
+      section.appendChild(snapshot);
+
+      // Events container
+      const eventsDiv = document.createElement('div');
+      eventsDiv.className = 'decade-events';
+
       decades[decade].sort((a, b) => a.year - b.year).forEach(evt => {
         const eventEl = document.createElement('div');
-        eventEl.style.cssText = `
-          position:relative;
-          padding:8px 16px 8px 56px;
-          cursor:pointer;
-          transition:background 0.15s;
-        `;
+        eventEl.style.cssText = 'position:relative;padding:8px 16px 8px 56px;cursor:pointer;transition:background 0.15s;';
         eventEl.addEventListener('mouseenter', () => { eventEl.style.background = 'rgba(184,110,58,0.04)'; });
         eventEl.addEventListener('mouseleave', () => { eventEl.style.background = 'transparent'; });
 
-        // Small dot on the line
         const dot = document.createElement('div');
-        dot.style.cssText = `
-          position:absolute;
-          left:20px;
-          top:16px;
-          width:11px;
-          height:11px;
-          border-radius:50%;
-          border:2.5px solid var(--bg);
-          z-index:2;
-          background:${evt.type === 'birth' ? 'var(--maternal)' : evt.type === 'death' ? 'var(--text-muted)' : 'var(--accent)'};
-        `;
+        dot.style.cssText = `position:absolute;left:20px;top:16px;width:11px;height:11px;border-radius:50%;border:2.5px solid var(--bg);z-index:2;background:${evt.type === 'birth' ? 'var(--maternal)' : evt.type === 'death' ? 'var(--text-muted)' : 'var(--accent)'};`;
         eventEl.appendChild(dot);
 
-        // Card
         const card = document.createElement('div');
-        card.style.cssText = `
-          background:var(--bg-card);
-          border:1px solid var(--border-light);
-          border-radius:var(--radius-sm);
-          padding:14px 18px;
-          box-shadow:var(--shadow-sm);
-          transition:box-shadow 0.2s, transform 0.2s;
-        `;
+        card.style.cssText = 'background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:14px 18px;box-shadow:var(--shadow-sm);transition:box-shadow 0.2s, transform 0.2s;';
         eventEl.addEventListener('mouseenter', () => { card.style.boxShadow = 'var(--shadow-md)'; card.style.transform = 'translateX(4px)'; });
         eventEl.addEventListener('mouseleave', () => { card.style.boxShadow = 'var(--shadow-sm)'; card.style.transform = 'none'; });
+
+        // Find person for side coloring
+        const person = allMembers.find(m => m.id === evt.personId);
+        const sideColor = person?.side === 'maternal' ? 'var(--maternal)' : person?.side === 'paternal' ? 'var(--paternal)' : 'var(--accent)';
+        const sideDot = person?.side ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${sideColor};margin-right:6px;vertical-align:middle;"></span>` : '';
 
         card.innerHTML = `
           <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px;">
             <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);font-weight:600;">${evt.year}</span>
             <span style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:var(--text);">${evt.person}</span>
           </div>
-          <div style="font-size:13px;color:var(--text-muted);">${evt.type === 'birth' ? '🌱 Born' : evt.type === 'death' ? '🕊 Passed away' : evt.type}</div>
+          <div style="font-size:13px;color:var(--text-muted);">${sideDot}${evt.type === 'birth' ? '🌱 Born' : evt.type === 'death' ? '🕊 Passed away' : evt.type}${person?.birthplace ? ' · ' + person.birthplace : ''}</div>
         `;
 
         eventEl.appendChild(card);
-
         eventEl.addEventListener('click', () => {
-          const person = allMembers.find(m => m.id === evt.personId);
           if (person) openPersonModal(person);
         });
 
-        wrapper.appendChild(eventEl);
+        eventsDiv.appendChild(eventEl);
       });
+
+      section.appendChild(eventsDiv);
+      wrapper.appendChild(section);
     });
 
     container.appendChild(wrapper);
