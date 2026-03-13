@@ -1286,7 +1286,11 @@ body::before {
 
     const g = svg.append('g');
 
-    const root = d3.hierarchy(familyData.root, d => d.parents);
+    const root = d3.hierarchy(familyData.root, d => d.parents)
+      .sum(() => 1)  // Each person counts as 1 — required for partition layout
+      .sort((a, b) => (a.data.side || '').localeCompare(b.data.side || ''));
+
+    console.log('Radial hierarchy — depth:', root.height, 'nodes:', root.descendants().length);
 
     // Use partition but map y values to leave center space
     const partition = d3.partition()
