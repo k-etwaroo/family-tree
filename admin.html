@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚙️ Family Tree — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .admin-wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    .admin-header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .admin-header h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+    }
+    .admin-header p {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    /* Gate */
+    .gate {
+      text-align: center;
+      padding: 60px 24px;
+    }
+    .gate input {
+      padding: 12px 20px;
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      text-align: center;
+      outline: none;
+      width: 240px;
+      transition: border-color 0.2s;
+    }
+    .gate input:focus { border-color: var(--accent); }
+    .gate button {
+      display: block;
+      margin: 16px auto 0;
+      padding: 10px 28px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .gate button:hover { background: var(--accent-hover); }
+
+    /* Form */
+    .admin-panel { display: none; }
+    .admin-panel.unlocked { display: block; }
+
+    .form-section {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+    .form-section h2 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-field input:focus,
+    .form-field select:focus,
+    .form-field textarea:focus {
+      border-color: var(--accent);
+      background: var(--bg-card);
+    }
+    .form-field textarea { min-height: 80px; resize: vertical; }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 100px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--bg-warm); color: var(--text); border: 1.5px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .btn-danger { background: #f5e0e0; color: #a33; }
+    .btn-danger:hover { background: #ecc; }
+
+    /* Members list */
+    .members-list {
+      margin-top: 16px;
+    }
+    .member-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-light);
+      transition: background 0.15s;
+    }
+    .member-row:hover { background: var(--accent-light); }
+    .member-row .mr-name { font-weight: 500; flex: 1; }
+    .member-row .mr-relation { font-size: 13px; color: var(--text-muted); }
+    .member-row .mr-actions { display: flex; gap: 8px; }
+    .mr-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-card);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mr-btn:hover { border-color: var(--accent); }
+    .mr-btn.delete:hover { border-color: #c44; color: #c44; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #2c2419;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<div class="admin-wrap">
+  <div class="admin-header">
+    <h1>⚙️ Admin Panel</h1>
+    <p>Add, edit, and manage family members</p>
+  </div>
+
+  <!-- Password Gate -->
+  <div class="gate" id="gate">
+    <p style="margin-bottom:16px;color:var(--text-muted);">Enter the admin password:</p>
+    <input type="password" id="gate-password" placeholder="Password" autofocus>
+    <button onclick="unlock()">Enter</button>
+  </div>
+
+  <!-- Admin Panel (hidden until unlocked) -->
+  <div class="admin-panel" id="admin-panel">
+
+    <!-- Add/Edit Form -->
+    <div class="form-section">
+      <h2 id="form-title">Add Family Member</h2>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Name</label>
+          <input type="text" id="f-name" placeholder="Full name">
+        </div>
+        <div class="form-field">
+          <label>Relation to Daughter</label>
+          <select id="f-relation">
+            <option value="">Select...</option>
+            <option value="self">Self (Daughter)</option>
+            <option value="mother">Mother</option>
+            <option value="father">Father</option>
+            <option value="grandmother">Grandmother</option>
+            <option value="grandfather">Grandfather</option>
+            <option value="great_grandmother">Great-Grandmother</option>
+            <option value="great_grandfather">Great-Grandfather</option>
+            <option value="aunt">Aunt</option>
+            <option value="uncle">Uncle</option>
+            <option value="cousin">Cousin</option>
+            <option value="sibling">Sibling</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Side</label>
+          <select id="f-side">
+            <option value="">N/A</option>
+            <option value="maternal">Maternal</option>
+            <option value="paternal">Paternal</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Generation</label>
+          <select id="f-generation">
+            <option value="0">0 — Daughter</option>
+            <option value="1">1 — Parents</option>
+            <option value="2">2 — Grandparents</option>
+            <option value="3">3 — Great-Grandparents</option>
+            <option value="4">4 — Great-Great</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Parent ID</label>
+          <input type="number" id="f-parent-id" placeholder="ID of their mother">
+        </div>
+        <div class="form-field">
+          <label>Spouse ID</label>
+          <input type="number" id="f-spouse-id" placeholder="ID of spouse">
+        </div>
+        <div class="form-field">
+          <label>Born</label>
+          <input type="text" id="f-born" placeholder="1960 or Jan 5, 1960">
+        </div>
+        <div class="form-field">
+          <label>Died</label>
+          <input type="text" id="f-died" placeholder="Leave blank if living">
+        </div>
+        <div class="form-field full">
+          <label>Birthplace</label>
+          <input type="text" id="f-birthplace" placeholder="City, State">
+        </div>
+        <div class="form-field full">
+          <label>Bio</label>
+          <textarea id="f-bio" placeholder="A sentence or two about this person..."></textarea>
+        </div>
+        <div class="form-field full">
+          <label>Fun Fact</label>
+          <input type="text" id="f-funfact" placeholder="Something memorable">
+        </div>
+        <div class="form-field full">
+          <label>Photo Filename</label>
+          <input type="text" id="f-photo" placeholder="photo.jpg (place file in photos/ folder)">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveMember()">💾 Save Member</button>
+        <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Current Members -->
+    <div class="form-section">
+      <h2>Current Members (<span id="member-count">0</span>)</h2>
+      <div class="members-list" id="members-list"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="form-section" style="text-align:center;">
+      <h2>Export</h2>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">Download the updated family.json to commit to your repo.</p>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-primary" onclick="exportJSON()">⬇️ Download family.json</button>
+        <button class="btn btn-secondary" onclick="importJSON()">⬆️ Import JSON</button>
+        <input type="file" id="import-file" accept=".json" style="display:none;">
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;">
+      <a href="index.html" style="color:var(--accent);font-size:14px;">← Back to Family Tree</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ─── State ───
+  let members = [];
+  let editingId = null;
+
+  // Admin password — change this!
+  const ADMIN_PASSWORD = 'family2026';
+
+  // ─── Gate ───
+  function unlock() {
+    const pw = document.getElementById('gate-password').value;
+    if (pw === ADMIN_PASSWORD) {
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('admin-panel').classList.add('unlocked');
+      loadMembers();
+    } else {
+      showToast('Wrong password');
+    }
+  }
+
+  document.getElementById('gate-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') unlock();
+  });
+
+  // ─── Load ───
+  async function loadMembers() {
+    try {
+      const resp = await fetch('data/family.json');
+      const data = await resp.json();
+      members = data.members || [];
+    } catch {
+      members = [];
+    }
+    renderMembersList();
+  }
+
+  // ─── Render Members List ───
+  function renderMembersList() {
+    const list = document.getElementById('members-list');
+    document.getElementById('member-count').textContent = members.length;
+
+    list.innerHTML = members.map(m => `
+      <div class="member-row">
+        <div class="mr-name">${m.name}</div>
+        <div class="mr-relation">${m.relation} ${m.side ? '(' + m.side + ')' : ''}</div>
+        <div class="mr-actions">
+          <button class="mr-btn" onclick="editMember(${m.id})">Edit</button>
+          <button class="mr-btn delete" onclick="deleteMember(${m.id})">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ─── Save ───
+  function saveMember() {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { showToast('Name is required'); return; }
+
+    const member = {
+      id: editingId || (members.length > 0 ? Math.max(...members.map(m => m.id)) + 1 : 1),
+      name,
+      relation: document.getElementById('f-relation').value,
+      side: document.getElementById('f-side').value,
+      generation: parseInt(document.getElementById('f-generation').value) || 0,
+      parent_id: parseInt(document.getElementById('f-parent-id').value) || null,
+      spouse_id: parseInt(document.getElementById('f-spouse-id').value) || null,
+      born: document.getElementById('f-born').value.trim(),
+      died: document.getElementById('f-died').value.trim(),
+      birthplace: document.getElementById('f-birthplace').value.trim(),
+      bio: document.getElementById('f-bio').value.trim(),
+      fun_fact: document.getElementById('f-funfact').value.trim(),
+      photo: document.getElementById('f-photo').value.trim(),
+    };
+
+    if (editingId) {
+      const idx = members.findIndex(m => m.id === editingId);
+      if (idx !== -1) members[idx] = member;
+      editingId = null;
+      document.getElementById('form-title').textContent = 'Add Family Member';
+    } else {
+      members.push(member);
+    }
+
+    clearForm();
+    renderMembersList();
+    showToast(`Saved ${name}`);
+  }
+
+  // ─── Edit ───
+  function editMember(id) {
+    const m = members.find(x => x.id === id);
+    if (!m) return;
+
+    editingId = id;
+    document.getElementById('form-title').textContent = `Editing: ${m.name}`;
+    document.getElementById('f-name').value = m.name;
+    document.getElementById('f-relation').value = m.relation;
+    document.getElementById('f-side').value = m.side;
+    document.getElementById('f-generation').value = m.generation;
+    document.getElementById('f-parent-id').value = m.parent_id || '';
+    document.getElementById('f-spouse-id').value = m.spouse_id || '';
+    document.getElementById('f-born').value = m.born;
+    document.getElementById('f-died').value = m.died;
+    document.getElementById('f-birthplace').value = m.birthplace;
+    document.getElementById('f-bio').value = m.bio;
+    document.getElementById('f-funfact').value = m.fun_fact;
+    document.getElementById('f-photo').value = m.photo;
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ─── Delete ───
+  function deleteMember(id) {
+    const m = members.find(x => x.id === id);
+    if (!m || !confirm(`Delete ${m.name}?`)) return;
+    members = members.filter(x => x.id !== id);
+    renderMembersList();
+    showToast(`Deleted ${m.name}`);
+  }
+
+  // ─── Clear ───
+  function clearForm() {
+    editingId = null;
+    document.getElementById('form-title').textContent = 'Add Family Member';
+    ['f-name','f-relation','f-side','f-generation','f-parent-id','f-spouse-id',
+     'f-born','f-died','f-birthplace','f-bio','f-funfact','f-photo']
+      .forEach(id => {
+        const el = document.getElementById(id);
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+      });
+  }
+
+  // ─── Export ───
+  function exportJSON() {
+    const data = { members };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'family.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded family.json — commit it to your repo!');
+  }
+
+  // ─── Import ───
+  function importJSON() {
+    const input = document.getElementById('import-file');
+    input.click();
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        members = data.members || [];
+        renderMembersList();
+        showToast(`Imported ${members.length} members`);
+      } catch {
+        showToast('Invalid JSON file');
+      }
+      input.value = '';
+    };
+  }
+
+  // ─── Toast ───
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>

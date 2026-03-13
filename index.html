@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌳 Our Family Tree</title>
+  <meta name="description" content="An interactive family tree — explore generations through tree, radial, card, and timeline views.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Our Family Tree">
+  <meta property="og:description" content="An interactive family tree — explore generations through multiple views.">
+  <meta property="og:type" content="website">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- D3.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+</head>
+<body>
+
+  <!-- ═══ HEADER ═══ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="logo" aria-label="Home">
+        <span class="logo-icon">🌳</span>
+        <span class="logo-text">Our Family Tree</span>
+      </a>
+
+      <nav class="view-nav" role="tablist" aria-label="View selector">
+        <button class="view-tab active" data-view="tree" role="tab" aria-selected="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="8" x2="3" y2="10"/><line x1="8" y1="8" x2="13" y2="10"/></svg>
+          <span>Tree</span>
+        </button>
+        <button class="view-tab" data-view="radial" role="tab" aria-selected="false">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6"/><circle cx="8" cy="2" r="1.2"/><circle cx="13" cy="11" r="1.2"/><circle cx="3" cy="11" r="1.2"/></svg>
+          <span>Radial</span>
+        </button>
+        <button class="view-tab" data-view="cards" role="tab" aria-selected="false">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+          <span>Cards</span>
+        </button>
+        <button class="view-tab" data-view="timeline" role="tab" aria-selected="false">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="8" x2="14" y2="8"/><circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="12" cy="8" r="1.5"/></svg>
+          <span>Timeline</span>
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <div class="search-wrapper">
+          <input type="text" id="search-input" class="search-input" placeholder="Search family..." aria-label="Search family members">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>
+          <div class="search-results" id="search-results"></div>
+        </div>
+        <a href="admin.html" class="admin-link" title="Admin Panel">⚙️</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main class="main-content">
+
+    <!-- View containers -->
+    <div class="view-container active" id="view-tree" role="tabpanel">
+      <div class="view-loading" id="loading-tree">
+        <div class="skeleton-tree">
+          <div class="skel-node root"></div>
+          <div class="skel-line"></div>
+          <div class="skel-row">
+            <div class="skel-node"></div>
+            <div class="skel-node"></div>
+          </div>
+          <div class="skel-line"></div>
+          <div class="skel-row">
+            <div class="skel-node sm"></div>
+            <div class="skel-node sm"></div>
+            <div class="skel-node sm"></div>
+            <div class="skel-node sm"></div>
+          </div>
+        </div>
+        <p class="loading-text">Growing the family tree...</p>
+      </div>
+      <div id="tree-canvas"></div>
+    </div>
+
+    <div class="view-container" id="view-radial" role="tabpanel">
+      <div class="view-loading" id="loading-radial">
+        <div class="skeleton-radial">
+          <div class="skel-ring r1"></div>
+          <div class="skel-ring r2"></div>
+          <div class="skel-ring r3"></div>
+          <div class="skel-center"></div>
+        </div>
+        <p class="loading-text">Arranging the rings...</p>
+      </div>
+      <div id="radial-canvas"></div>
+    </div>
+
+    <div class="view-container" id="view-cards" role="tabpanel">
+      <div class="cards-toolbar">
+        <div class="filter-group">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="maternal">Maternal</button>
+          <button class="filter-btn" data-filter="paternal">Paternal</button>
+        </div>
+        <div class="filter-group">
+          <button class="filter-btn" data-gen="all">All Generations</button>
+          <button class="filter-btn" data-gen="0">Gen 0</button>
+          <button class="filter-btn" data-gen="1">Parents</button>
+          <button class="filter-btn" data-gen="2">Grandparents</button>
+          <button class="filter-btn" data-gen="3">Great-Grand</button>
+        </div>
+      </div>
+      <div id="cards-grid" class="cards-grid"></div>
+    </div>
+
+    <div class="view-container" id="view-timeline" role="tabpanel">
+      <div id="timeline-canvas" class="timeline-canvas"></div>
+    </div>
+
+    <!-- Person Detail Modal -->
+    <div class="modal-overlay" id="person-modal">
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close">&times;</button>
+        <div class="modal-photo-wrap">
+          <img id="modal-photo" src="" alt="" class="modal-photo">
+        </div>
+        <h2 id="modal-name" class="modal-name"></h2>
+        <p id="modal-relation" class="modal-relation"></p>
+        <div class="modal-details">
+          <div class="modal-detail" id="modal-born"></div>
+          <div class="modal-detail" id="modal-birthplace"></div>
+          <div class="modal-detail" id="modal-bio"></div>
+          <div class="modal-detail" id="modal-fact"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="site-footer">
+    <p>Made with 🌳 for our family</p>
+  </footer>
+
+  <!-- App Scripts -->
+  <script src="js/app.js"></script>
+</body>
+</html>
