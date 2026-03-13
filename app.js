@@ -11,7 +11,7 @@
   const SHEETS_CONFIG = {
     apiKey: 'AIzaSyBVnfX5ld_hrU9FWL9F8Pe68jf4ZjyrA3U',
     sheetId: '1hqwlHomJrpSjRpof0dux_4ojRshpHD50s6b33P61Qmc',
-    sheetName: 'family',  // Change if your tab has a different name
+    sheetName: 'family',  // Your sheet tab name
   };
 
   // ─── State ───
@@ -57,7 +57,7 @@
 
     // Fallback to local family.json
     try {
-      const response = await fetch('data/family.json');
+      const response = await fetch('./data/family.json');
       if (!response.ok) throw new Error('No data file found');
       const data = await response.json();
       allMembers = data.members || [];
