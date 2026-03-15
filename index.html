@@ -1695,68 +1695,75 @@ body::before {
     nodes.transition().duration(600).delay((d, i) => i * 60)
       .style('opacity', 1);
 
-    // Define clipPath for photos
+    const nodeRadius = d => d.depth === 0 ? 30 : 22;
+
+    // Define clipPaths
     const defs = svg.append('defs');
     nodes.each(function(d) {
-      const r = d.depth === 0 ? 24 : 18;
       defs.append('clipPath')
         .attr('id', 'clip-' + d.data.id)
         .append('circle')
-        .attr('r', r);
+        .attr('r', nodeRadius(d));
     });
 
     // Background circle
     nodes.append('circle')
-      .attr('r', d => d.depth === 0 ? 24 : 18)
+      .attr('r', nodeRadius)
       .attr('fill', 'var(--bg-warm)');
 
-    // Photo image (if available) or fallback to initial letter
+    // Photo or initial — preload images to check if they exist
     nodes.each(function(d) {
       const node = d3.select(this);
-      const r = d.depth === 0 ? 24 : 18;
+      const r = nodeRadius(d);
 
-      if (d.data.photo) {
-        node.append('image')
-          .attr('href', 'photos/' + d.data.photo)
-          .attr('x', -r).attr('y', -r)
-          .attr('width', r * 2).attr('height', r * 2)
-          .attr('clip-path', `url(#clip-${d.data.id})`)
-          .attr('preserveAspectRatio', 'xMidYMid slice')
-          .on('error', function() {
-            // Fallback to letter on image load error
-            d3.select(this).remove();
-            node.append('text')
-              .attr('dy', '0.35em')
-              .attr('text-anchor', 'middle')
-              .attr('font-size', d.depth === 0 ? '16px' : '12px')
-              .attr('font-weight', '600')
-              .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054')
-              .text(d.data.name.charAt(0));
-          });
-      } else {
+      function showInitial() {
         node.append('text')
           .attr('dy', '0.35em')
           .attr('text-anchor', 'middle')
-          .attr('font-size', d.depth === 0 ? '16px' : '12px')
+          .attr('font-size', d.depth === 0 ? '18px' : '13px')
           .attr('font-weight', '600')
           .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054')
           .text(d.data.name.charAt(0));
       }
+
+      if (d.data.photo) {
+        // Preload with an HTML img to test if it exists
+        const testImg = new Image();
+        testImg.onload = function() {
+          node.append('image')
+            .attr('href', 'photos/' + d.data.photo)
+            .attr('x', -r).attr('y', -r)
+            .attr('width', r * 2).attr('height', r * 2)
+            .attr('clip-path', `url(#clip-${d.data.id})`)
+            .attr('preserveAspectRatio', 'xMidYMid slice');
+        };
+        testImg.onerror = showInitial;
+        testImg.src = 'photos/' + d.data.photo;
+      } else {
+        showInitial();
+      }
     });
 
-    // Outer ring for hover effect
+    // Outer ring (stroke from CSS)
     nodes.append('circle')
-      .attr('r', d => d.depth === 0 ? 24 : 18)
+      .attr('r', nodeRadius)
       .attr('fill', 'none')
       .attr('stroke-width', 2);
 
-    // Name label below
+    // Name label below — show full name, wrap if needed
     nodes.append('text')
-      .attr('dy', d => d.depth === 0 ? 40 : 32)
+      .attr('dy', d => d.depth === 0 ? 46 : 36)
       .attr('text-anchor', 'middle')
       .attr('font-size', '11px')
       .attr('fill', 'var(--text-secondary)')
-      .text(d => d.data.name.length > 20 ? d.data.name.slice(0, 18) + '…' : d.data.name);
+      .text(d => {
+        const name = d.data.name;
+        if (name.length <= 22) return name;
+        // Try first + last name
+        const parts = name.split(' ');
+        if (parts.length > 2) return parts[0] + ' ' + parts[parts.length - 1];
+        return name.slice(0, 20) + '…';
+      });
 
     // Zoom & pan
     const zoom = d3.zoom()
@@ -1776,9 +1783,9 @@ body::before {
     if (loading) loading.style.display = 'none';
     container.innerHTML = '';
 
-    const size = Math.min(container.clientWidth || 700, window.innerHeight - 200, 700);
+    const size = Math.min(container.clientWidth || 800, window.innerHeight - 160, 800);
     const radius = size / 2;
-    const centerRadius = 50; // Space for Ava's center circle
+    const centerRadius = 65; // Space for Ava's center circle
 
     const svg = d3.select(container)
       .append('svg')
@@ -1787,6 +1794,7 @@ body::before {
       .style('max-width', size + 'px');
 
     const g = svg.append('g');
+    const defs = svg.append('defs');
 
     const root = d3.hierarchy(familyData.root, d => d.parents)
       .sum(() => 1)  // Each person counts as 1 — required for partition layout
@@ -1902,15 +1910,36 @@ body::before {
         return firstName.slice(0, maxChars - 1) + '…';
       });
 
-    // Center label for Ava
+    // Center: photo if available, otherwise first name
+    if (familyData.root.photo) {
+      const cr = centerRadius - 5;
+      defs.append('clipPath')
+        .attr('id', 'clip-center')
+        .append('circle')
+        .attr('r', cr);
+
+      const testImg = new Image();
+      testImg.onload = function() {
+        g.append('image')
+          .attr('href', 'photos/' + familyData.root.photo)
+          .attr('x', -cr).attr('y', -cr)
+          .attr('width', cr * 2).attr('height', cr * 2)
+          .attr('clip-path', 'url(#clip-center)')
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .style('pointer-events', 'none');
+      };
+      testImg.src = 'photos/' + familyData.root.photo;
+    }
+
+    // Name below center circle
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'middle')
+      .attr('y', centerRadius + 16)
       .attr('font-family', 'Cormorant Garamond, serif')
-      .attr('font-size', '13px')
+      .attr('font-size', '14px')
       .attr('font-weight', '600')
-      .attr('fill', '#fff')
-      .text(familyData.root.name.split(' ')[0]); // First name only in center
+      .attr('fill', 'var(--text)')
+      .text(familyData.root.name.split(' ')[0]);
 
     // Zoom & pan
     const zoom = d3.zoom()
