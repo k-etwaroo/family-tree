@@ -6,7 +6,7 @@
   <title>⚙️ Family Tree — Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/family-tree/css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
   <style>
     .admin-wrap {
       max-width: 700px;
@@ -205,16 +205,27 @@
     <!-- Add/Edit Form -->
     <div class="form-section">
       <h2 id="form-title">Add Family Member</h2>
+
+      <!-- Live Preview -->
+      <div id="form-preview" style="display:flex;justify-content:center;margin-bottom:20px;">
+        <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:20px;text-align:center;width:200px;">
+          <div id="preview-avatar" style="width:64px;height:64px;border-radius:50%;margin:0 auto 10px;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:24px;font-weight:600;color:var(--accent);">?</div>
+          <div id="preview-name" style="font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:var(--text);">New Member</div>
+          <div id="preview-relation" style="font-size:12px;color:var(--text-muted);margin-top:2px;">—</div>
+          <div id="preview-side-tag" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
       <div class="form-grid">
         <div class="form-field">
           <label>Name</label>
-          <input type="text" id="f-name" placeholder="Full name">
+          <input type="text" id="f-name" placeholder="Full name" oninput="updatePreview()">
         </div>
         <div class="form-field">
-          <label>Relation to Daughter</label>
-          <select id="f-relation">
+          <label>Relation to Ava</label>
+          <select id="f-relation" onchange="updatePreview(); autoFillGeneration();">
             <option value="">Select...</option>
-            <option value="self">Self (Daughter)</option>
+            <option value="self">Self (Ava)</option>
             <option value="mother">Mother</option>
             <option value="father">Father</option>
             <option value="grandmother">Grandmother</option>
@@ -229,7 +240,7 @@
         </div>
         <div class="form-field">
           <label>Side</label>
-          <select id="f-side">
+          <select id="f-side" onchange="updatePreview()">
             <option value="">N/A</option>
             <option value="maternal">Maternal</option>
             <option value="paternal">Paternal</option>
@@ -238,7 +249,7 @@
         <div class="form-field">
           <label>Generation</label>
           <select id="f-generation">
-            <option value="0">0 — Daughter</option>
+            <option value="0">0 — Ava</option>
             <option value="1">1 — Parents</option>
             <option value="2">2 — Grandparents</option>
             <option value="3">3 — Great-Grandparents</option>
@@ -246,12 +257,16 @@
           </select>
         </div>
         <div class="form-field">
-          <label>Parent ID</label>
-          <input type="number" id="f-parent-id" placeholder="ID of their mother">
+          <label>Parent (Mother of this person)</label>
+          <select id="f-parent-id">
+            <option value="">None / Unknown</option>
+          </select>
         </div>
         <div class="form-field">
-          <label>Spouse ID</label>
-          <input type="number" id="f-spouse-id" placeholder="ID of spouse">
+          <label>Spouse</label>
+          <select id="f-spouse-id">
+            <option value="">None / Not Entered</option>
+          </select>
         </div>
         <div class="form-field">
           <label>Born</label>
@@ -274,8 +289,8 @@
           <input type="text" id="f-funfact" placeholder="Something memorable">
         </div>
         <div class="form-field full">
-          <label>Photo Filename</label>
-          <input type="text" id="f-photo" placeholder="photo.jpg (place file in photos/ folder)">
+          <label>Photo Filename <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;">(use firstname-lastname.jpg format)</span></label>
+          <input type="text" id="f-photo" placeholder="kevin-etwaroo.jpg" oninput="updatePreview()">
         </div>
       </div>
       <div class="btn-row">
@@ -410,6 +425,68 @@
         </div>
       </div>
     `).join('');
+
+    // Populate parent/spouse dropdowns
+    populateDropdowns();
+  }
+
+  function populateDropdowns() {
+    const parentSelect = document.getElementById('f-parent-id');
+    const spouseSelect = document.getElementById('f-spouse-id');
+    const currentParent = parentSelect.value;
+    const currentSpouse = spouseSelect.value;
+
+    parentSelect.innerHTML = '<option value="">None / Unknown</option>';
+    spouseSelect.innerHTML = '<option value="">None / Not Entered</option>';
+
+    members.forEach(m => {
+      parentSelect.innerHTML += `<option value="${m.id}">${m.name} (ID: ${m.id})</option>`;
+      spouseSelect.innerHTML += `<option value="${m.id}">${m.name} (ID: ${m.id})</option>`;
+    });
+
+    // Restore selections
+    if (currentParent) parentSelect.value = currentParent;
+    if (currentSpouse) spouseSelect.value = currentSpouse;
+  }
+
+  function updatePreview() {
+    const name = document.getElementById('f-name').value.trim() || 'New Member';
+    const relation = document.getElementById('f-relation').value;
+    const side = document.getElementById('f-side').value;
+    const photo = document.getElementById('f-photo').value.trim();
+
+    document.getElementById('preview-name').textContent = name;
+    document.getElementById('preview-relation').textContent = relation ? relation.replace(/_/g, ' ') : '—';
+
+    const avatar = document.getElementById('preview-avatar');
+    if (photo) {
+      avatar.innerHTML = `<img src="photos/${photo}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${name.charAt(0)}'">`;
+    } else {
+      avatar.textContent = name.charAt(0).toUpperCase() || '?';
+    }
+
+    const tagEl = document.getElementById('preview-side-tag');
+    if (side) {
+      const color = side === 'maternal' ? 'var(--maternal)' : 'var(--paternal)';
+      const bg = side === 'maternal' ? 'var(--maternal-light)' : 'var(--paternal-light)';
+      tagEl.innerHTML = `<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:500;background:${bg};color:${color};">${side}</span>`;
+    } else {
+      tagEl.innerHTML = '';
+    }
+  }
+
+  function autoFillGeneration() {
+    const relation = document.getElementById('f-relation').value;
+    const genMap = {
+      'self': 0, 'sibling': 0,
+      'mother': 1, 'father': 1, 'aunt': 1, 'uncle': 1,
+      'grandmother': 2, 'grandfather': 2,
+      'great_grandmother': 3, 'great_grandfather': 3,
+      'cousin': 1,
+    };
+    if (genMap[relation] !== undefined) {
+      document.getElementById('f-generation').value = genMap[relation];
+    }
   }
 
   // ─── Save ───

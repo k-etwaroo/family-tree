@@ -439,19 +439,27 @@ body::before {
   stroke: var(--accent);
   stroke-width: 2px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s var(--ease);
 }
-.tree-node circle:hover {
+.tree-node:hover circle {
   fill: var(--accent-light);
   stroke-width: 3px;
-  filter: drop-shadow(0 2px 8px rgba(184,110,58,0.3));
+  filter: drop-shadow(0 2px 12px rgba(184,110,58,0.35));
 }
+.tree-node:hover { transform: scale(1.08); }
 .tree-node text {
   font-family: var(--font-body);
   font-size: 12px;
   fill: var(--text);
   pointer-events: none;
+  transition: fill 0.2s;
 }
+.tree-node:hover text { fill: var(--accent); }
+.tree-node image {
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.tree-node:hover image { filter: brightness(1.1); }
 .tree-node .node-photo {
   cursor: pointer;
 }
@@ -459,9 +467,71 @@ body::before {
   fill: none;
   stroke: var(--border);
   stroke-width: 1.5px;
+  transition: stroke 0.3s;
 }
 .tree-node.maternal circle { stroke: var(--maternal); }
 .tree-node.paternal circle { stroke: var(--paternal); }
+
+/* Card stagger animation */
+.person-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s var(--ease);
+  animation: cardIn 0.45s var(--ease-bounce) both;
+}
+.person-card:nth-child(1) { animation-delay: 0s; }
+.person-card:nth-child(2) { animation-delay: 0.04s; }
+.person-card:nth-child(3) { animation-delay: 0.08s; }
+.person-card:nth-child(4) { animation-delay: 0.12s; }
+.person-card:nth-child(5) { animation-delay: 0.16s; }
+.person-card:nth-child(6) { animation-delay: 0.2s; }
+.person-card:nth-child(n+7) { animation-delay: 0.24s; }
+.person-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+}
+.person-card:hover .card-photo {
+  border-color: var(--accent-light);
+  transform: scale(1.05);
+}
+
+/* Card photo transition */
+.person-card .card-photo {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 12px;
+  border: 3px solid var(--bg-warm);
+  background: var(--bg-warm);
+  transition: all 0.3s var(--ease);
+}
+
+/* Error / empty state */
+.view-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+}
+.view-empty .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.view-empty .empty-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.view-empty .empty-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 360px;
+}
 
 /* ─── Radial View ─── */
 #radial-canvas {
@@ -517,29 +587,6 @@ body::before {
   gap: 16px;
 }
 
-.person-card {
-  background: var(--bg-card);
-  border: 1.5px solid var(--border-light);
-  border-radius: var(--radius);
-  padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s var(--ease);
-  animation: cardIn 0.4s var(--ease-bounce) both;
-}
-.person-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-3px);
-}
-.person-card .card-photo {
-  width: 72px; height: 72px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin: 0 auto 12px;
-  border: 3px solid var(--bg-warm);
-  background: var(--bg-warm);
-}
 .person-card .card-name {
   font-family: var(--font-display);
   font-size: 18px;
@@ -1136,10 +1183,23 @@ body::before {
       console.log(`Loaded ${allMembers.length} members from local JSON`);
       renderCurrentView();
     } catch (err) {
-      console.log('No local data either — showing sample data.', err.message);
-      loadSampleData();
-      renderCurrentView();
+      console.log('No local data either — showing error state.', err.message);
+      showErrorState();
     }
+  }
+
+  function showErrorState() {
+    // Hide all loading skeletons
+    document.querySelectorAll('.view-loading').forEach(el => el.style.display = 'none');
+    // Show error in tree view
+    const container = document.getElementById('tree-canvas');
+    container.innerHTML = `
+      <div class="view-empty">
+        <div class="empty-icon">🌱</div>
+        <div class="empty-title">No family data yet</div>
+        <div class="empty-text">Add family members to your Google Sheet, or use the <a href="admin.html" style="color:var(--accent);">admin panel</a> to get started.</div>
+      </div>
+    `;
   }
 
   async function fetchFromGoogleSheets() {
@@ -1601,8 +1661,8 @@ body::before {
     // Center horizontally
     const offsetX = -width / 2 + 60;
 
-    // Links
-    g.selectAll('.tree-link')
+    // Links with animated draw-in
+    const links = g.selectAll('.tree-link')
       .data(root.links())
       .join('path')
       .attr('class', 'tree-link')
@@ -1611,6 +1671,16 @@ body::before {
         .y(d => d.y)
       );
 
+    // Animate links drawing in
+    links.each(function() {
+      const totalLength = this.getTotalLength();
+      d3.select(this)
+        .attr('stroke-dasharray', totalLength)
+        .attr('stroke-dashoffset', totalLength)
+        .transition().duration(800).ease(d3.easeCubicOut)
+        .attr('stroke-dashoffset', 0);
+    });
+
     // Nodes
     const nodes = g.selectAll('.tree-node')
       .data(root.descendants())
@@ -1618,27 +1688,75 @@ body::before {
       .attr('class', d => `tree-node ${d.data.side || ''}`)
       .attr('transform', d => `translate(${d.x + offsetX}, ${d.y})`)
       .style('cursor', 'pointer')
+      .style('opacity', 0)
       .on('click', (event, d) => openPersonModal(d.data));
 
-    nodes.append('circle')
-      .attr('r', d => d.depth === 0 ? 24 : 18);
+    // Animated entrance
+    nodes.transition().duration(600).delay((d, i) => i * 60)
+      .style('opacity', 1);
 
-    // Initial letter inside circle
-    nodes.append('text')
-      .attr('dy', '0.35em')
-      .attr('text-anchor', 'middle')
-      .attr('font-size', d => d.depth === 0 ? '16px' : '12px')
-      .attr('font-weight', '600')
-      .attr('fill', d => d.depth === 0 ? '#b86e3a' : '#6b6054')
-      .text(d => d.data.name.charAt(0));
+    // Define clipPath for photos
+    const defs = svg.append('defs');
+    nodes.each(function(d) {
+      const r = d.depth === 0 ? 24 : 18;
+      defs.append('clipPath')
+        .attr('id', 'clip-' + d.data.id)
+        .append('circle')
+        .attr('r', r);
+    });
+
+    // Background circle
+    nodes.append('circle')
+      .attr('r', d => d.depth === 0 ? 24 : 18)
+      .attr('fill', 'var(--bg-warm)');
+
+    // Photo image (if available) or fallback to initial letter
+    nodes.each(function(d) {
+      const node = d3.select(this);
+      const r = d.depth === 0 ? 24 : 18;
+
+      if (d.data.photo) {
+        node.append('image')
+          .attr('href', 'photos/' + d.data.photo)
+          .attr('x', -r).attr('y', -r)
+          .attr('width', r * 2).attr('height', r * 2)
+          .attr('clip-path', `url(#clip-${d.data.id})`)
+          .attr('preserveAspectRatio', 'xMidYMid slice')
+          .on('error', function() {
+            // Fallback to letter on image load error
+            d3.select(this).remove();
+            node.append('text')
+              .attr('dy', '0.35em')
+              .attr('text-anchor', 'middle')
+              .attr('font-size', d.depth === 0 ? '16px' : '12px')
+              .attr('font-weight', '600')
+              .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054')
+              .text(d.data.name.charAt(0));
+          });
+      } else {
+        node.append('text')
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'middle')
+          .attr('font-size', d.depth === 0 ? '16px' : '12px')
+          .attr('font-weight', '600')
+          .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054')
+          .text(d.data.name.charAt(0));
+      }
+    });
+
+    // Outer ring for hover effect
+    nodes.append('circle')
+      .attr('r', d => d.depth === 0 ? 24 : 18)
+      .attr('fill', 'none')
+      .attr('stroke-width', 2);
 
     // Name label below
     nodes.append('text')
       .attr('dy', d => d.depth === 0 ? 40 : 32)
       .attr('text-anchor', 'middle')
       .attr('font-size', '11px')
-      .attr('fill', '#6b6054')
-      .text(d => d.data.name.length > 18 ? d.data.name.slice(0, 16) + '…' : d.data.name);
+      .attr('fill', 'var(--text-secondary)')
+      .text(d => d.data.name.length > 20 ? d.data.name.slice(0, 18) + '…' : d.data.name);
 
     // Zoom & pan
     const zoom = d3.zoom()
