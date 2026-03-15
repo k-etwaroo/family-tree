@@ -8,6 +8,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/style.css">
   <style>
+    /* Inline fallback variables in case external CSS fails */
+    :root {
+      --bg: #f7f4ef; --bg-warm: #f0ebe2; --bg-card: #ffffff;
+      --text: #2c2419; --text-secondary: #6b6054; --text-muted: #9a9184;
+      --accent: #b86e3a; --accent-hover: #9c5a2c; --accent-light: #f3e4d4;
+      --maternal: #7a9e7e; --maternal-light: #e4efe5;
+      --paternal: #5d7fa3; --paternal-light: #dce8f3;
+      --border: #e2dbd0; --border-light: #ece7df;
+      --shadow-sm: 0 1px 3px rgba(44,36,25,0.06);
+      --shadow-md: 0 4px 16px rgba(44,36,25,0.08);
+      --radius: 12px; --radius-sm: 8px;
+      --font-display: 'Cormorant Garamond', Georgia, serif;
+      --font-body: 'Outfit', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+  </style>
+  <style>
     .admin-wrap {
       max-width: 700px;
       margin: 0 auto;
