@@ -1792,7 +1792,7 @@ body::before {
   //  Each one hides the loading skeleton and draws
   // ═══════════════════════════════════════════════
 
-  // ─── TREE VIEW ───
+  // ─── TREE VIEW (Horizontal — Ava left, ancestors right) ───
   function renderTree() {
     const container = document.getElementById('tree-canvas');
     const loading = document.getElementById('loading-tree');
@@ -1802,227 +1802,149 @@ body::before {
     if (loading) loading.style.display = 'none';
     container.innerHTML = '';
 
-    const width = Math.max(container.clientWidth || 900, 1200);
-    const height = Math.max(650, window.innerHeight - 180);
+    const root = d3.hierarchy(familyData.root, d => d.parents);
+    const totalSiblings = root.descendants().reduce((sum, d) => sum + (d.data.siblings ? d.data.siblings.length : 0), 0);
+    const totalNodes = root.descendants().length + totalSiblings;
+
+    const containerWidth = container.clientWidth || 900;
+    const width = Math.max(containerWidth, 900);
+    const height = Math.max(650, totalNodes * 52, window.innerHeight - 200);
 
     const svg = d3.select(container)
       .append('svg')
-      .attr('viewBox', `0 0 ${width} ${height}`)
-      .attr('preserveAspectRatio', 'xMidYMid meet');
+      .attr('viewBox', '0 0 ' + width + ' ' + height)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('min-height', Math.min(height, 900) + 'px');
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${width / 2}, 60)`);
-
-    // Build the D3 hierarchy — parents as children (tree grows downward = ancestors)
-    const root = d3.hierarchy(familyData.root, d => d.parents);
+    const g = svg.append('g').attr('transform', 'translate(80,' + (height / 2) + ')');
+    const defs = svg.append('defs');
 
     const treeLayout = d3.tree()
-      .size([width - 200, height - 160])
-      .separation((a, b) => a.parent === b.parent ? 1.5 : 2.2);
+      .size([height - 120, width - 300])
+      .separation(function(a, b) { return a.parent === b.parent ? 1.0 : 1.6; });
 
     treeLayout(root);
 
-    const offsetX = -width / 2 + 100;
-    const defs = svg.append('defs');
-
-    // Collect sibling nodes to render alongside the main tree
+    // Collect siblings
     const siblingNodes = [];
-    root.descendants().forEach(d => {
+    root.descendants().forEach(function(d) {
       if (d.data.siblings && d.data.siblings.length > 0) {
-        const sibCount = d.data.siblings.length;
-        d.data.siblings.forEach((sib, i) => {
-          // Spread siblings evenly to one side of the main node
-          // Place all siblings to the right of the main node with consistent spacing
-          const spacing = 65;
-          const startOffset = spacing;
-          const offset = startOffset + i * spacing;
-
+        d.data.siblings.forEach(function(sib, i) {
           siblingNodes.push({
-            data: sib,
-            x: d.x + offset,
-            y: d.y + 8, // Slight vertical offset so they don't sit exactly on the same line
-            parentX: d.x,
-            parentY: d.y - 40,
-            depth: d.depth
+            data: sib, x: d.x + (i + 1) * 50, y: d.y + 20,
+            parentX: d.x, parentY: d.y, depth: d.depth
           });
         });
       }
     });
 
-    // Links with animated draw-in
+    const offsetY = -height / 2 + 60;
+
+    // Horizontal links
     const links = g.selectAll('.tree-link')
-      .data(root.links())
-      .join('path')
-      .attr('class', 'tree-link')
-      .attr('d', d3.linkVertical()
-        .x(d => d.x + offsetX)
-        .y(d => d.y)
-      );
+      .data(root.links()).join('path').attr('class', 'tree-link')
+      .attr('d', d3.linkHorizontal().x(function(d) { return d.y; }).y(function(d) { return d.x + offsetY; }));
 
     links.each(function() {
-      const totalLength = this.getTotalLength();
-      d3.select(this)
-        .attr('stroke-dasharray', totalLength)
-        .attr('stroke-dashoffset', totalLength)
-        .transition().duration(800).ease(d3.easeCubicOut)
-        .attr('stroke-dashoffset', 0);
+      var len = this.getTotalLength();
+      d3.select(this).attr('stroke-dasharray', len).attr('stroke-dashoffset', len)
+        .transition().duration(800).ease(d3.easeCubicOut).attr('stroke-dashoffset', 0);
     });
 
-    // Sibling connector links (dashed, horizontal bracket)
-    siblingNodes.forEach(sib => {
-      // Draw a simple L-shaped connector: horizontal from main node, then short vertical drop
-      const mainX = sib.parentX + offsetX;
-      const sibX = sib.x + offsetX;
-      const bracketY = sib.parentY + 20;
-
-      g.append('path')
-        .attr('class', 'tree-link')
-        .attr('d', `M${mainX},${bracketY} L${sibX},${bracketY} L${sibX},${sib.y - 16}`)
-        .attr('stroke-dasharray', '4 3')
-        .attr('opacity', 0.4);
+    // Sibling connectors
+    siblingNodes.forEach(function(sib) {
+      g.append('path').attr('class', 'tree-link')
+        .attr('d', 'M' + sib.parentY + ',' + (sib.parentX + offsetY) + ' L' + sib.parentY + ',' + (sib.x + offsetY) + ' L' + sib.y + ',' + (sib.x + offsetY))
+        .attr('stroke-dasharray', '4 3').attr('opacity', 0.35);
     });
 
-    // ─── Render main tree nodes ───
-    const nodeRadius = d => d.depth === 0 ? 30 : 22;
+    // Main nodes
+    var nodeRadius = function(d) { return d.depth === 0 ? 28 : 20; };
 
-    const nodes = g.selectAll('.tree-node')
-      .data(root.descendants())
-      .join('g')
-      .attr('class', d => `tree-node ${d.data.side || ''}`)
-      .attr('transform', d => `translate(${d.x + offsetX}, ${d.y})`)
-      .style('cursor', 'pointer')
-      .style('opacity', 0)
-      .on('click', (event, d) => openPersonModal(d.data));
+    var nodes = g.selectAll('.tree-node').data(root.descendants()).join('g')
+      .attr('class', function(d) { return 'tree-node ' + (d.data.side || ''); })
+      .attr('transform', function(d) { return 'translate(' + d.y + ',' + (d.x + offsetY) + ')'; })
+      .style('cursor', 'pointer').style('opacity', 0)
+      .on('click', function(event, d) { openPersonModal(d.data); });
 
-    nodes.transition().duration(600).delay((d, i) => i * 60)
-      .style('opacity', 1);
+    nodes.transition().duration(600).delay(function(d, i) { return i * 50; }).style('opacity', 1);
 
     nodes.each(function(d) {
-      defs.append('clipPath')
-        .attr('id', 'clip-' + d.data.id)
-        .append('circle')
-        .attr('r', nodeRadius(d));
+      defs.append('clipPath').attr('id', 'clip-' + d.data.id).append('circle').attr('r', nodeRadius(d));
     });
 
-    nodes.append('circle')
-      .attr('r', nodeRadius)
-      .attr('fill', 'var(--bg-warm)');
+    nodes.append('circle').attr('r', nodeRadius).attr('fill', 'var(--bg-warm)');
 
     nodes.each(function(d) {
-      const node = d3.select(this);
-      const r = nodeRadius(d);
-
+      var node = d3.select(this); var r = nodeRadius(d);
       function showInitial() {
-        node.append('text')
-          .attr('dy', '0.35em')
-          .attr('text-anchor', 'middle')
-          .attr('font-size', d.depth === 0 ? '18px' : '13px')
-          .attr('font-weight', '600')
-          .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054')
-          .text(d.data.name.charAt(0));
+        node.append('text').attr('dy', '0.35em').attr('text-anchor', 'middle')
+          .attr('font-size', d.depth === 0 ? '16px' : '12px').attr('font-weight', '600')
+          .attr('fill', d.depth === 0 ? '#b86e3a' : '#6b6054').text(d.data.name.charAt(0));
       }
-
       if (d.data.photo) {
-        const testImg = new Image();
+        var testImg = new Image();
         testImg.onload = function() {
-          node.append('image')
-            .attr('href', 'photos/' + d.data.photo)
-            .attr('x', -r).attr('y', -r)
-            .attr('width', r * 2).attr('height', r * 2)
-            .attr('clip-path', `url(#clip-${d.data.id})`)
-            .attr('preserveAspectRatio', 'xMidYMid slice');
+          node.append('image').attr('href', 'photos/' + d.data.photo)
+            .attr('x', -r).attr('y', -r).attr('width', r * 2).attr('height', r * 2)
+            .attr('clip-path', 'url(#clip-' + d.data.id + ')').attr('preserveAspectRatio', 'xMidYMid slice');
         };
-        testImg.onerror = showInitial;
-        testImg.src = 'photos/' + d.data.photo;
-      } else {
-        showInitial();
-      }
+        testImg.onerror = showInitial; testImg.src = 'photos/' + d.data.photo;
+      } else { showInitial(); }
     });
 
-    nodes.append('circle')
-      .attr('r', nodeRadius)
-      .attr('fill', 'none')
-      .attr('stroke-width', 2);
+    nodes.append('circle').attr('r', nodeRadius).attr('fill', 'none').attr('stroke-width', 2);
 
-    nodes.append('text')
-      .attr('dy', d => d.depth === 0 ? 46 : 36)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '11px')
+    // Names to the right
+    nodes.append('text').attr('x', function(d) { return nodeRadius(d) + 8; }).attr('dy', '0.35em')
+      .attr('text-anchor', 'start').attr('font-size', function(d) { return d.depth === 0 ? '13px' : '11px'; })
+      .attr('font-weight', function(d) { return d.depth === 0 ? '600' : '400'; })
       .attr('fill', 'var(--text-secondary)')
-      .text(d => {
-        const name = d.data.name;
-        if (name.length <= 22) return name;
-        const parts = name.split(' ');
+      .text(function(d) {
+        var name = d.data.name;
+        if (name.length <= 24) return name;
+        var parts = name.split(' ');
         if (parts.length > 2) return parts[0] + ' ' + parts[parts.length - 1];
-        return name.slice(0, 20) + '…';
+        return name.slice(0, 22) + '...';
       });
 
-    // ─── Render sibling nodes (smaller, slightly faded) ───
-    const sibNodeRadius = 16;
-
-    siblingNodes.forEach((sib, i) => {
-      defs.append('clipPath')
-        .attr('id', 'clip-sib-' + sib.data.id)
-        .append('circle')
-        .attr('r', sibNodeRadius);
-
-      const sibGroup = g.append('g')
-        .attr('class', `tree-node sibling-node ${sib.data.side || ''}`)
-        .attr('transform', `translate(${sib.x + offsetX}, ${sib.y})`)
-        .style('cursor', 'pointer')
-        .style('opacity', 0)
-        .on('click', () => openPersonModal(sib.data));
-
-      sibGroup.transition().duration(600).delay(800 + i * 80)
-        .style('opacity', 0.75);
-
-      sibGroup.append('circle')
-        .attr('r', sibNodeRadius)
-        .attr('fill', 'var(--bg-warm)');
-
-      // Photo or initial
+    // Sibling nodes
+    var sibR = 14;
+    siblingNodes.forEach(function(sib, i) {
+      defs.append('clipPath').attr('id', 'clip-sib-' + sib.data.id).append('circle').attr('r', sibR);
+      var sg = g.append('g').attr('class', 'tree-node sibling-node ' + (sib.data.side || ''))
+        .attr('transform', 'translate(' + sib.y + ',' + (sib.x + offsetY) + ')')
+        .style('cursor', 'pointer').style('opacity', 0)
+        .on('click', function() { openPersonModal(sib.data); });
+      sg.transition().duration(500).delay(700 + i * 60).style('opacity', 0.7);
+      sg.append('circle').attr('r', sibR).attr('fill', 'var(--bg-warm)');
       if (sib.data.photo) {
-        const testImg = new Image();
+        var testImg = new Image();
         testImg.onload = function() {
-          sibGroup.append('image')
-            .attr('href', 'photos/' + sib.data.photo)
-            .attr('x', -sibNodeRadius).attr('y', -sibNodeRadius)
-            .attr('width', sibNodeRadius * 2).attr('height', sibNodeRadius * 2)
-            .attr('clip-path', `url(#clip-sib-${sib.data.id})`)
-            .attr('preserveAspectRatio', 'xMidYMid slice');
+          sg.append('image').attr('href', 'photos/' + sib.data.photo)
+            .attr('x', -sibR).attr('y', -sibR).attr('width', sibR * 2).attr('height', sibR * 2)
+            .attr('clip-path', 'url(#clip-sib-' + sib.data.id + ')').attr('preserveAspectRatio', 'xMidYMid slice');
         };
         testImg.src = 'photos/' + sib.data.photo;
       } else {
-        sibGroup.append('text')
-          .attr('dy', '0.35em')
-          .attr('text-anchor', 'middle')
-          .attr('font-size', '11px')
-          .attr('font-weight', '500')
-          .attr('fill', '#9a9184')
-          .text(sib.data.name.charAt(0));
+        sg.append('text').attr('dy', '0.35em').attr('text-anchor', 'middle')
+          .attr('font-size', '10px').attr('font-weight', '500').attr('fill', '#9a9184').text(sib.data.name.charAt(0));
       }
-
-      sibGroup.append('circle')
-        .attr('r', sibNodeRadius)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--border)')
-        .attr('stroke-width', 1.5)
-        .attr('stroke-dasharray', '3 2');
-
-      sibGroup.append('text')
-        .attr('dy', sibNodeRadius + 14)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '10px')
-        .attr('fill', 'var(--text-muted)')
-        .text(sib.data.name.split(' ')[0]);
+      sg.append('circle').attr('r', sibR).attr('fill', 'none').attr('stroke', 'var(--border)').attr('stroke-width', 1.5).attr('stroke-dasharray', '3 2');
+      sg.append('text').attr('x', sibR + 6).attr('dy', '0.35em').attr('text-anchor', 'start')
+        .attr('font-size', '10px').attr('fill', 'var(--text-muted)').text(sib.data.name.split(' ')[0]);
     });
 
-    // Zoom & pan
-    const zoom = d3.zoom()
-      .scaleExtent([0.3, 3])
-      .on('zoom', (event) => g.attr('transform', event.transform));
-
+    // Zoom & pan with auto-fit
+    var zoom = d3.zoom().scaleExtent([0.25, 3])
+      .on('zoom', function(event) { g.attr('transform', event.transform); });
     svg.call(zoom);
+
+    var bounds = g.node().getBBox();
+    var scale = Math.min(width / (bounds.width + 160), height / (bounds.height + 120), 1);
+    var tx = (width - bounds.width * scale) / 2 - bounds.x * scale;
+    var ty = (height - bounds.height * scale) / 2 - bounds.y * scale;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
   }
 
   // ─── RADIAL VIEW ───
