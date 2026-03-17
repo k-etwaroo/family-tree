@@ -1,0 +1,44 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7f4ef"/>
+      <stop offset="100%" stop-color="#f0ebe2"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7a9e7e"/>
+      <stop offset="100%" stop-color="#5d7fa3"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="600" cy="280" r="120" fill="none" stroke="#e2dbd0" stroke-width="2" stroke-dasharray="8 4"/>
+  <circle cx="600" cy="280" r="200" fill="none" stroke="#e2dbd0" stroke-width="1.5" stroke-dasharray="6 6"/>
+  <circle cx="600" cy="280" r="270" fill="none" stroke="#ece7df" stroke-width="1" stroke-dasharray="4 8"/>
+  
+  <!-- Center circle -->
+  <circle cx="600" cy="260" r="60" fill="#d4a84b" opacity="0.9"/>
+  
+  <!-- Tree icon -->
+  <text x="600" y="275" text-anchor="middle" font-size="48" fill="white">🌳</text>
+  
+  <!-- Title -->
+  <text x="600" y="380" text-anchor="middle" font-family="Georgia, serif" font-size="48" font-weight="700" fill="#2c2419">Ava's Family Tree</text>
+  
+  <!-- Subtitle -->
+  <text x="600" y="420" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#9a9184">Explore generations through interactive views</text>
+  
+  <!-- Maternal / Paternal indicators -->
+  <circle cx="440" cy="480" r="8" fill="#7a9e7e"/>
+  <text x="456" y="486" font-family="sans-serif" font-size="16" fill="#6b6054">Maternal</text>
+  <circle cx="680" cy="480" r="8" fill="#5d7fa3"/>
+  <text x="696" y="486" font-family="sans-serif" font-size="16" fill="#6b6054">Paternal</text>
+  
+  <!-- Bottom accent line -->
+  <rect x="200" y="540" width="800" height="3" rx="1.5" fill="url(#accent)" opacity="0.4"/>
+  
+  <!-- URL -->
+  <text x="600" y="580" text-anchor="middle" font-family="monospace" font-size="14" fill="#9a9184">k-etwaroo.github.io/family-tree</text>
+</svg>

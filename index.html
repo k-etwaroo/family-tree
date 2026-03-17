@@ -8,8 +8,16 @@
 
   <!-- Open Graph -->
   <meta property="og:title" content="Ava's Family Tree">
-  <meta property="og:description" content="Ava's interactive family tree — explore generations through multiple views.">
+  <meta property="og:description" content="Explore Ava Michele Etwaroo's family across generations — interactive tree, radial chart, cards, and timeline views.">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://k-etwaroo.github.io/family-tree/og-image.svg">
+  <meta property="og:url" content="https://k-etwaroo.github.io/family-tree/">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Ava's Family Tree">
+  <meta name="twitter:description" content="Explore Ava's family across generations — interactive tree, radial, cards, and timeline views.">
+  <meta name="twitter:image" content="https://k-etwaroo.github.io/family-tree/og-image.svg">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -771,6 +779,102 @@ body::before {
   margin-bottom: 2px;
 }
 
+/* ═══ HERO BANNER ═══ */
+.hero-banner {
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg) 40%, var(--paternal-light) 100%);
+  border-bottom: 1px solid var(--border-light);
+  padding: 28px 24px 24px;
+  animation: viewFadeIn 0.5s var(--ease);
+}
+.hero-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.hero-photo-wrap {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-photo-wrap img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.hero-text { flex: 1; min-width: 160px; }
+.hero-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+.hero-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.hero-stats {
+  display: flex;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.hero-stat {
+  text-align: center;
+}
+.hero-stat-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.hero-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.hero-share {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.share-btn {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  background: var(--bg-card);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.share-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+@media (max-width: 768px) {
+  .hero-inner { justify-content: center; text-align: center; }
+  .hero-stats { justify-content: center; }
+  .hero-share { justify-content: center; }
+  .hero-text { text-align: center; min-width: 100%; }
+}
+
 /* ═══ FOOTER ═══ */
 .site-footer {
   text-align: center;
@@ -952,7 +1056,7 @@ body::before {
 
 /* Print styles */
 @media print {
-  .site-header, .site-footer, .radial-actions, .cards-toolbar { display: none !important; }
+  .site-header, .site-footer, .radial-actions, .cards-toolbar, .hero-banner { display: none !important; }
   .view-container { padding: 0 !important; min-height: auto !important; }
   body { background: #fff !important; }
   body::before { display: none; }
@@ -1006,6 +1110,23 @@ body::before {
 
   <!-- ═══ MAIN CONTENT ═══ -->
   <main class="main-content">
+
+    <!-- Hero Stats Banner -->
+    <div class="hero-banner" id="hero-banner" style="display:none;">
+      <div class="hero-inner">
+        <div class="hero-photo-wrap" id="hero-photo"></div>
+        <div class="hero-text">
+          <h1 class="hero-title" id="hero-title">Ava's Family Tree</h1>
+          <p class="hero-subtitle" id="hero-subtitle"></p>
+        </div>
+        <div class="hero-stats" id="hero-stats"></div>
+        <div class="hero-share">
+          <button class="share-btn" onclick="shareTree('copy')" title="Copy Link">🔗 Copy Link</button>
+          <button class="share-btn" onclick="shareTree('twitter')" title="Share on X">𝕏 Share</button>
+          <button class="share-btn" onclick="shareTree('whatsapp')" title="Share on WhatsApp">💬 WhatsApp</button>
+        </div>
+      </div>
+    </div>
 
     <!-- View containers -->
     <div class="view-container active" id="view-tree" role="tabpanel">
@@ -1104,7 +1225,7 @@ body::before {
 
   <!-- ═══ FOOTER ═══ -->
   <footer class="site-footer">
-    <p>Made with 🌳 for Ava</p>
+    <p>Made with 🌳 for Ava · <a href="admin.html" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>
   </footer>
 
   <!-- App Scripts -->
@@ -1162,6 +1283,7 @@ body::before {
           root: buildTreeFromFlat(allMembers),
           events: buildEventsFromMembers(allMembers)
         };
+        populateHero();
         renderCurrentView();
         return;
       }
@@ -1181,6 +1303,7 @@ body::before {
         events: data.events || buildEventsFromMembers(allMembers)
       };
       console.log(`Loaded ${allMembers.length} members from local JSON`);
+      populateHero();
       renderCurrentView();
     } catch (err) {
       console.log('No local data either — showing error state.', err.message);
@@ -2221,21 +2344,94 @@ body::before {
 
     if (printBtn) {
       printBtn.addEventListener('click', () => {
-        // Switch to radial view if not already
         switchView('radial');
-        // Small delay for render, then print
         setTimeout(() => window.print(), 300);
       });
     }
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        // Re-render radial to reset zoom
         renderRadial();
       });
     }
   }
 
+  // ═══ HERO BANNER ═══
+  function populateHero() {
+    if (!allMembers.length) return;
+
+    const banner = document.getElementById('hero-banner');
+    banner.style.display = '';
+
+    // Photo
+    const photoWrap = document.getElementById('hero-photo');
+    const root = allMembers.find(m => m.generation === 0);
+    if (root && root.photo) {
+      photoWrap.innerHTML = `<img src="photos/${root.photo}" alt="${root.name}" onerror="this.parentElement.innerHTML='🌳'">`;
+    } else {
+      photoWrap.innerHTML = '🌳';
+      photoWrap.style.fontSize = '28px';
+      photoWrap.style.color = '#fff';
+    }
+
+    // Title & subtitle
+    const total = allMembers.length;
+    const generations = Math.max(...allMembers.map(m => m.generation)) + 1;
+    const withBirthYear = allMembers.filter(m => extractYear(m.born)).map(m => ({ ...m, birthYear: extractYear(m.born) }));
+    const oldest = withBirthYear.length ? withBirthYear.sort((a, b) => a.birthYear - b.birthYear)[0] : null;
+    const yearSpan = oldest ? new Date().getFullYear() - oldest.birthYear : 0;
+
+    document.getElementById('hero-subtitle').textContent = `${total} family members · ${generations} generations${yearSpan ? ' · ' + yearSpan + ' years of history' : ''}`;
+
+    // Stats
+    const maternal = allMembers.filter(m => m.side === 'maternal').length;
+    const paternal = allMembers.filter(m => m.side === 'paternal').length;
+
+    document.getElementById('hero-stats').innerHTML = `
+      <div class="hero-stat">
+        <div class="hero-stat-value">${total}</div>
+        <div class="hero-stat-label">Members</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">${generations}</div>
+        <div class="hero-stat-label">Generations</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value" style="color:var(--maternal)">${maternal}</div>
+        <div class="hero-stat-label">Maternal</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value" style="color:var(--paternal)">${paternal}</div>
+        <div class="hero-stat-label">Paternal</div>
+      </div>
+    `;
+  }
+
+  // ═══ SOCIAL SHARE ═══
+  function shareTree(platform) {
+    const url = window.location.origin + window.location.pathname;
+    const text = "Check out Ava's Family Tree — an interactive family tree spanning generations!";
+
+    switch(platform) {
+      case 'copy':
+        navigator.clipboard.writeText(url).then(() => {
+          showShareToast('Link copied!');
+        }).catch(() => {
+          showShareToast(url);
+        });
+        break;
+      case 'twitter':
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+        break;
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
+        break;
+    }
+  }
+
   // ═══ KICK IT OFF ═══
+  // Expose share function globally for onclick handlers
+  window.shareTree = shareTree;
+  
   document.addEventListener('DOMContentLoaded', init);
 
 })();
