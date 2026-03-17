@@ -1802,8 +1802,8 @@ body::before {
     if (loading) loading.style.display = 'none';
     container.innerHTML = '';
 
-    const width = container.clientWidth || 900;
-    const height = Math.max(600, window.innerHeight - 180);
+    const width = Math.max(container.clientWidth || 900, 1200);
+    const height = Math.max(650, window.innerHeight - 180);
 
     const svg = d3.select(container)
       .append('svg')
@@ -1817,27 +1817,32 @@ body::before {
     const root = d3.hierarchy(familyData.root, d => d.parents);
 
     const treeLayout = d3.tree()
-      .size([width - 140, height - 160])
-      .separation((a, b) => a.parent === b.parent ? 1.3 : 2.0);
+      .size([width - 200, height - 160])
+      .separation((a, b) => a.parent === b.parent ? 1.5 : 2.2);
 
     treeLayout(root);
 
-    const offsetX = -width / 2 + 70;
+    const offsetX = -width / 2 + 100;
     const defs = svg.append('defs');
 
     // Collect sibling nodes to render alongside the main tree
     const siblingNodes = [];
     root.descendants().forEach(d => {
       if (d.data.siblings && d.data.siblings.length > 0) {
+        const sibCount = d.data.siblings.length;
         d.data.siblings.forEach((sib, i) => {
-          // Position siblings to the left or right of this node
-          const offset = (i + 1) * 55 * (i % 2 === 0 ? -1 : 1);
+          // Spread siblings evenly to one side of the main node
+          // Place all siblings to the right of the main node with consistent spacing
+          const spacing = 65;
+          const startOffset = spacing;
+          const offset = startOffset + i * spacing;
+
           siblingNodes.push({
             data: sib,
             x: d.x + offset,
-            y: d.y,
-            parentX: d.x, // Link back to the main node's position
-            parentY: d.y - 50, // Link upward slightly to suggest shared parent
+            y: d.y + 8, // Slight vertical offset so they don't sit exactly on the same line
+            parentX: d.x,
+            parentY: d.y - 40,
             depth: d.depth
           });
         });
@@ -1863,13 +1868,18 @@ body::before {
         .attr('stroke-dashoffset', 0);
     });
 
-    // Sibling connector links (dashed)
+    // Sibling connector links (dashed, horizontal bracket)
     siblingNodes.forEach(sib => {
+      // Draw a simple L-shaped connector: horizontal from main node, then short vertical drop
+      const mainX = sib.parentX + offsetX;
+      const sibX = sib.x + offsetX;
+      const bracketY = sib.parentY + 20;
+
       g.append('path')
         .attr('class', 'tree-link')
-        .attr('d', `M${sib.parentX + offsetX},${sib.parentY} C${sib.parentX + offsetX},${sib.y - 15} ${sib.x + offsetX},${sib.parentY + 15} ${sib.x + offsetX},${sib.y}`)
+        .attr('d', `M${mainX},${bracketY} L${sibX},${bracketY} L${sibX},${sib.y - 16}`)
         .attr('stroke-dasharray', '4 3')
-        .attr('opacity', 0.5);
+        .attr('opacity', 0.4);
     });
 
     // ─── Render main tree nodes ───
