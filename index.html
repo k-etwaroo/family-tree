@@ -480,6 +480,10 @@ body::before {
 .tree-node.maternal circle { stroke: var(--maternal); }
 .tree-node.paternal circle { stroke: var(--paternal); }
 
+/* Sibling nodes in tree — slightly smaller and faded */
+.sibling-node:hover { opacity: 1 !important; }
+.sibling-node circle { stroke-dasharray: 3 2; }
+
 /* Card stagger animation */
 .person-card {
   background: var(--bg-card);
@@ -1397,19 +1401,35 @@ body::before {
   }
 
   // ─── Build nested tree from flat member list ───
+  // This builds an ancestor tree with siblings at each level
   function buildTreeFromFlat(members) {
     const root = members.find(m => m.generation === 0) || members[0];
     if (!root) return null;
 
-    function attachParents(person) {
-      const node = { ...person, parents: [] };
+    // Track visited IDs to prevent infinite loops
+    const visited = new Set();
 
-      // Find parents: people whose id matches this person's parent_id, or their spouse
+    function attachParents(person) {
+      if (visited.has(person.id)) return { ...person, parents: [] };
+      visited.add(person.id);
+
+      const node = { ...person, parents: [], siblings: [] };
+
+      // Find this person's direct parent (mother)
       const directParent = members.find(m => m.id === person.parent_id);
       if (directParent) {
+        // Find siblings — other people with the same parent_id (excluding this person)
+        const sibs = members.filter(m =>
+          m.id !== person.id &&
+          m.parent_id === person.parent_id &&
+          !visited.has(m.id)
+        );
+        node.siblings = sibs.map(s => ({ ...s, parents: [], siblings: [], _isSibling: true }));
+
+        // Recurse up the ancestor chain
         node.parents.push(attachParents(directParent));
         const spouse = members.find(m => m.id === directParent.spouse_id);
-        if (spouse) {
+        if (spouse && !visited.has(spouse.id)) {
           node.parents.push(attachParents(spouse));
         }
       }
@@ -1418,6 +1438,30 @@ body::before {
     }
 
     return attachParents(root);
+  }
+
+  // Build a D3-compatible hierarchy that includes siblings as additional children
+  function buildTreeHierarchy(rootNode) {
+    // For the tree view, we need "children" to go upward (parents)
+    // but also include siblings branching off to the side
+    function buildNode(person) {
+      const children = [];
+
+      // Add parents (going upward)
+      if (person.parents) {
+        person.parents.forEach(p => {
+          children.push(buildNode(p));
+        });
+      }
+
+      return {
+        ...person,
+        _children: children.length ? children : undefined,
+        _siblings: person.siblings || []
+      };
+    }
+
+    return buildNode(rootNode);
   }
 
   function buildEventsFromMembers(members) {
@@ -1755,14 +1799,11 @@ body::before {
 
     if (!familyData || !familyData.root) return;
 
-    // Hide skeleton
     if (loading) loading.style.display = 'none';
-
-    // Clear previous
     container.innerHTML = '';
 
     const width = container.clientWidth || 900;
-    const height = Math.max(500, window.innerHeight - 180);
+    const height = Math.max(600, window.innerHeight - 180);
 
     const svg = d3.select(container)
       .append('svg')
@@ -1772,17 +1813,36 @@ body::before {
     const g = svg.append('g')
       .attr('transform', `translate(${width / 2}, 60)`);
 
-    // Convert our data to D3 hierarchy (reverse: root = daughter, children = parents)
+    // Build the D3 hierarchy — parents as children (tree grows downward = ancestors)
     const root = d3.hierarchy(familyData.root, d => d.parents);
 
     const treeLayout = d3.tree()
-      .size([width - 120, height - 140])
-      .separation((a, b) => a.parent === b.parent ? 1.2 : 1.8);
+      .size([width - 140, height - 160])
+      .separation((a, b) => a.parent === b.parent ? 1.3 : 2.0);
 
     treeLayout(root);
 
-    // Center horizontally
-    const offsetX = -width / 2 + 60;
+    const offsetX = -width / 2 + 70;
+    const defs = svg.append('defs');
+
+    // Collect sibling nodes to render alongside the main tree
+    const siblingNodes = [];
+    root.descendants().forEach(d => {
+      if (d.data.siblings && d.data.siblings.length > 0) {
+        d.data.siblings.forEach((sib, i) => {
+          // Position siblings to the left or right of this node
+          const offset = (i + 1) * 55 * (i % 2 === 0 ? -1 : 1);
+          siblingNodes.push({
+            data: sib,
+            x: d.x + offset,
+            y: d.y,
+            parentX: d.x, // Link back to the main node's position
+            parentY: d.y - 50, // Link upward slightly to suggest shared parent
+            depth: d.depth
+          });
+        });
+      }
+    });
 
     // Links with animated draw-in
     const links = g.selectAll('.tree-link')
@@ -1794,7 +1854,6 @@ body::before {
         .y(d => d.y)
       );
 
-    // Animate links drawing in
     links.each(function() {
       const totalLength = this.getTotalLength();
       d3.select(this)
@@ -1804,7 +1863,18 @@ body::before {
         .attr('stroke-dashoffset', 0);
     });
 
-    // Nodes
+    // Sibling connector links (dashed)
+    siblingNodes.forEach(sib => {
+      g.append('path')
+        .attr('class', 'tree-link')
+        .attr('d', `M${sib.parentX + offsetX},${sib.parentY} C${sib.parentX + offsetX},${sib.y - 15} ${sib.x + offsetX},${sib.parentY + 15} ${sib.x + offsetX},${sib.y}`)
+        .attr('stroke-dasharray', '4 3')
+        .attr('opacity', 0.5);
+    });
+
+    // ─── Render main tree nodes ───
+    const nodeRadius = d => d.depth === 0 ? 30 : 22;
+
     const nodes = g.selectAll('.tree-node')
       .data(root.descendants())
       .join('g')
@@ -1814,14 +1884,9 @@ body::before {
       .style('opacity', 0)
       .on('click', (event, d) => openPersonModal(d.data));
 
-    // Animated entrance
     nodes.transition().duration(600).delay((d, i) => i * 60)
       .style('opacity', 1);
 
-    const nodeRadius = d => d.depth === 0 ? 30 : 22;
-
-    // Define clipPaths
-    const defs = svg.append('defs');
     nodes.each(function(d) {
       defs.append('clipPath')
         .attr('id', 'clip-' + d.data.id)
@@ -1829,12 +1894,10 @@ body::before {
         .attr('r', nodeRadius(d));
     });
 
-    // Background circle
     nodes.append('circle')
       .attr('r', nodeRadius)
       .attr('fill', 'var(--bg-warm)');
 
-    // Photo or initial — preload images to check if they exist
     nodes.each(function(d) {
       const node = d3.select(this);
       const r = nodeRadius(d);
@@ -1850,7 +1913,6 @@ body::before {
       }
 
       if (d.data.photo) {
-        // Preload with an HTML img to test if it exists
         const testImg = new Image();
         testImg.onload = function() {
           node.append('image')
@@ -1867,13 +1929,11 @@ body::before {
       }
     });
 
-    // Outer ring (stroke from CSS)
     nodes.append('circle')
       .attr('r', nodeRadius)
       .attr('fill', 'none')
       .attr('stroke-width', 2);
 
-    // Name label below — show full name, wrap if needed
     nodes.append('text')
       .attr('dy', d => d.depth === 0 ? 46 : 36)
       .attr('text-anchor', 'middle')
@@ -1882,11 +1942,70 @@ body::before {
       .text(d => {
         const name = d.data.name;
         if (name.length <= 22) return name;
-        // Try first + last name
         const parts = name.split(' ');
         if (parts.length > 2) return parts[0] + ' ' + parts[parts.length - 1];
         return name.slice(0, 20) + '…';
       });
+
+    // ─── Render sibling nodes (smaller, slightly faded) ───
+    const sibNodeRadius = 16;
+
+    siblingNodes.forEach((sib, i) => {
+      defs.append('clipPath')
+        .attr('id', 'clip-sib-' + sib.data.id)
+        .append('circle')
+        .attr('r', sibNodeRadius);
+
+      const sibGroup = g.append('g')
+        .attr('class', `tree-node sibling-node ${sib.data.side || ''}`)
+        .attr('transform', `translate(${sib.x + offsetX}, ${sib.y})`)
+        .style('cursor', 'pointer')
+        .style('opacity', 0)
+        .on('click', () => openPersonModal(sib.data));
+
+      sibGroup.transition().duration(600).delay(800 + i * 80)
+        .style('opacity', 0.75);
+
+      sibGroup.append('circle')
+        .attr('r', sibNodeRadius)
+        .attr('fill', 'var(--bg-warm)');
+
+      // Photo or initial
+      if (sib.data.photo) {
+        const testImg = new Image();
+        testImg.onload = function() {
+          sibGroup.append('image')
+            .attr('href', 'photos/' + sib.data.photo)
+            .attr('x', -sibNodeRadius).attr('y', -sibNodeRadius)
+            .attr('width', sibNodeRadius * 2).attr('height', sibNodeRadius * 2)
+            .attr('clip-path', `url(#clip-sib-${sib.data.id})`)
+            .attr('preserveAspectRatio', 'xMidYMid slice');
+        };
+        testImg.src = 'photos/' + sib.data.photo;
+      } else {
+        sibGroup.append('text')
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '11px')
+          .attr('font-weight', '500')
+          .attr('fill', '#9a9184')
+          .text(sib.data.name.charAt(0));
+      }
+
+      sibGroup.append('circle')
+        .attr('r', sibNodeRadius)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--border)')
+        .attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '3 2');
+
+      sibGroup.append('text')
+        .attr('dy', sibNodeRadius + 14)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '10px')
+        .attr('fill', 'var(--text-muted)')
+        .text(sib.data.name.split(' ')[0]);
+    });
 
     // Zoom & pan
     const zoom = d3.zoom()
