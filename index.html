@@ -1426,49 +1426,6 @@ body::before {
 
   // ─── Build top-down family tree (couples → children) for tree view ───
   function buildDescendantTree(members) {
-    // Find the oldest generation couples and build downward
-    const maxGen = Math.max(...members.map(m => m.generation));
-
-    // Build a couple-based structure: each couple has children
-    // A "family unit" is a parent + spouse who share children
-    function getChildren(parentId, spouseId) {
-      return members.filter(m => {
-        if (m.parent_id === parentId) return true;
-        if (spouseId && m.parent_id === spouseId) return true;
-        return false;
-      });
-    }
-
-    // Start from the root person (Ava) and build the full tree top-down
-    // We need to find the topmost ancestors and work down
-    // Strategy: build a map of parent_id → children, then create a hierarchy
-
-    // Find people who have no parent_id (top of tree) — these are the oldest
-    const topAncestors = members.filter(m => !m.parent_id);
-
-    // Group top ancestors into couples
-    const couples = [];
-    const usedIds = new Set();
-
-    topAncestors.forEach(person => {
-      if (usedIds.has(person.id)) return;
-      usedIds.add(person.id);
-      const couple = { parents: [person], children: [] };
-      if (person.spouse_id) {
-        const spouse = members.find(m => m.id === person.spouse_id);
-        if (spouse) {
-          couple.parents.push(spouse);
-          usedIds.add(spouse.id);
-        }
-      }
-      // Find their children
-      couple.children = members.filter(m =>
-        couple.parents.some(p => m.parent_id === p.id)
-      );
-      couples.push(couple);
-    });
-
-    // Build recursive hierarchy: each node is a person, children are their actual children
     const visited = new Set();
 
     function buildNode(person) {
@@ -1477,21 +1434,38 @@ body::before {
 
       const node = { ...person, children: [] };
 
-      // Find this person's children (people whose parent_id = this person's id)
-      let kids = members.filter(m => m.parent_id === person.id);
-
-      // Also include children of spouse if spouse's id is someone's parent_id
+      // Mark spouse as visited too (they'll be shown as a label, not a separate node)
+      let spouse = null;
       if (person.spouse_id) {
-        const spouseKids = members.filter(m => m.parent_id === person.spouse_id && !kids.find(k => k.id === m.id));
-        kids = [...kids, ...spouseKids];
+        spouse = members.find(m => m.id === person.spouse_id);
+        if (spouse) {
+          visited.add(spouse.id);
+          node._spouse = spouse;
+        }
+      }
+      // Also check if someone lists this person as their spouse
+      if (!spouse) {
+        spouse = members.find(m => m.spouse_id === person.id && !visited.has(m.id));
+        if (spouse) {
+          visited.add(spouse.id);
+          node._spouse = spouse;
+        }
       }
 
-      // Remove duplicates
-      const seen = new Set();
-      kids = kids.filter(k => {
-        if (seen.has(k.id)) return false;
-        seen.add(k.id);
-        return true;
+      // Find children: people whose parent_id matches this person or their spouse
+      let kids = members.filter(m => m.parent_id === person.id);
+      if (spouse) {
+        const spouseKids = members.filter(m => m.parent_id === spouse.id);
+        spouseKids.forEach(sk => {
+          if (!kids.find(k => k.id === sk.id)) kids.push(sk);
+        });
+      }
+
+      // Sort kids by birth year if available
+      kids.sort((a, b) => {
+        const ya = parseInt(a.born) || 9999;
+        const yb = parseInt(b.born) || 9999;
+        return ya - yb;
       });
 
       kids.forEach(kid => {
@@ -1502,16 +1476,31 @@ body::before {
       return node;
     }
 
-    // Find the absolute root couples (great-grandparents on each side)
-    // Build a virtual root that has both sides as children
+    // Find root ancestors: people with no parent_id who aren't just spouses
+    // Priority: people who have children pointing to them
+    const hasChildrenPointingTo = new Set();
+    members.forEach(m => { if (m.parent_id) hasChildrenPointingTo.add(m.parent_id); });
+
+    const rootCandidates = members.filter(m =>
+      !m.parent_id && (hasChildrenPointingTo.has(m.id) || !m.spouse_id)
+    );
+
+    // Build from each root
     const roots = [];
-    couples.forEach(couple => {
-      const mainParent = couple.parents[0];
-      const node = buildNode(mainParent);
-      if (node) roots.push(node);
+    rootCandidates.forEach(person => {
+      if (visited.has(person.id)) return;
+      const node = buildNode(person);
+      if (node && (node.children.length > 0 || node._spouse)) roots.push(node);
     });
 
-    // If we have multiple root couples, create a virtual root
+    // Also catch any unvisited people with no parent_id (married-in with no kids in tree)
+    members.forEach(m => {
+      if (!visited.has(m.id) && !m.parent_id) {
+        const node = buildNode(m);
+        if (node) roots.push(node);
+      }
+    });
+
     if (roots.length === 0) return null;
     if (roots.length === 1) return roots[0];
 
@@ -1967,20 +1956,17 @@ body::before {
         return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
       });
 
-    // Spouse labels (show "+ SpouseName" next to married couples)
+    // Spouse labels (show "+ SpouseName" next to married people)
     nodes.each(function(d) {
-      if (d.data.spouse_id) {
-        var spouse = allMembers.find(function(m) { return m.id === d.data.spouse_id; });
-        if (spouse && d.children && d.children.length > 0) {
-          // Only show spouse label on the person who has children listed under them
-          d3.select(this).append('text')
-            .attr('dy', function() { return nodeR(d) + 26; })
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '9px')
-            .attr('fill', 'var(--text-muted)')
-            .attr('font-style', 'italic')
-            .text('+ ' + spouse.name.split(' ')[0]);
-        }
+      var spouse = d.data._spouse;
+      if (spouse) {
+        d3.select(this).append('text')
+          .attr('dy', function() { return nodeR(d) + 26; })
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '9px')
+          .attr('fill', 'var(--text-muted)')
+          .attr('font-style', 'italic')
+          .text('+ ' + spouse.name.split(' ')[0]);
       }
     });
 
