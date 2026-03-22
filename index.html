@@ -1961,7 +1961,7 @@ body::before {
   //  Each one hides the loading skeleton and draws
   // ═══════════════════════════════════════════════
 
-  // ─── TREE VIEW (Ava-first, generation rows, collapsible siblings) ───
+  // ─── TREE VIEW (Network graph — Ava at center) ───
   function renderTree() {
     var container = document.getElementById('tree-canvas');
     var loading = document.getElementById('loading-tree');
@@ -1970,176 +1970,240 @@ body::before {
     if (loading) loading.style.display = 'none';
     container.innerHTML = '';
 
-    // Build generation-based layout: Ava → Parents → Grandparents → Great-Grandparents
-    var ava = allMembers.find(function(m) { return m.generation === 0; }) || allMembers[0];
-    var maxGen = Math.max.apply(null, allMembers.map(function(m) { return m.generation || 0; }));
+    var width = container.clientWidth || 900;
+    var height = Math.max(650, window.innerHeight - 200);
 
-    var wrapper = document.createElement('div');
-    wrapper.className = 'gen-tree';
+    var svg = d3.select(container).append('svg')
+      .attr('viewBox', '0 0 ' + width + ' ' + height)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
 
-    // Generation labels
-    var genLabels = ['', 'Parents', 'Grandparents', 'Great-Grandparents', 'Great-Great-Grandparents'];
+    var g = svg.append('g');
+    var defs = svg.append('defs');
 
-    // Render Ava first
-    var avaRow = createGenRow('Ava', -1);
-    avaRow.querySelector('.gen-people').appendChild(createPersonNode(ava, true));
-    wrapper.appendChild(avaRow);
+    // Build nodes and links from flat member data
+    var ava = allMembers.find(function(m) { return m.generation === 0 && m.relation === 'self'; }) || allMembers[0];
 
-    // Render each generation
-    for (var gen = 1; gen <= maxGen; gen++) {
-      var label = genLabels[gen] || 'Generation ' + gen;
+    var nodes = allMembers.map(function(m) {
+      return {
+        id: m.id,
+        name: m.name,
+        relation: m.relation,
+        side: m.side,
+        generation: m.generation || 0,
+        photo: m.photo,
+        data: m,
+        // Pin Ava to center
+        fx: m.id === ava.id ? width / 2 : undefined,
+        fy: m.id === ava.id ? height / 2 : undefined
+      };
+    });
 
-      // Direct ancestors for this generation (people in Ava's direct line)
-      var directIds = getDirectAncestorIds();
-      var genMembers = allMembers.filter(function(m) { return m.generation === gen; });
+    var links = [];
 
-      // Split into direct line and extended
-      var direct = genMembers.filter(function(m) { return directIds.has(m.id); });
-      var extended = genMembers.filter(function(m) { return !directIds.has(m.id); });
+    // Create links: parent_id connections
+    allMembers.forEach(function(m) {
+      if (m.parent_id) {
+        var parentNode = nodes.find(function(n) { return n.id === m.parent_id; });
+        if (parentNode) {
+          links.push({ source: m.id, target: m.parent_id, type: 'parent' });
+        }
+      }
+      // Spouse connections
+      if (m.spouse_id) {
+        // Only add one direction to avoid duplicates
+        if (m.id < m.spouse_id) {
+          var spouseNode = nodes.find(function(n) { return n.id === m.spouse_id; });
+          if (spouseNode) {
+            links.push({ source: m.id, target: m.spouse_id, type: 'spouse' });
+          }
+        }
+      }
+    });
 
-      var row = createGenRow(label, gen);
-      var peopleDiv = row.querySelector('.gen-people');
+    // Force simulation
+    var simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(function(d) { return d.id; })
+        .distance(function(d) {
+          if (d.type === 'spouse') return 50;
+          return 80 + d.source.generation * 15;
+        })
+        .strength(function(d) {
+          return d.type === 'spouse' ? 1.2 : 0.7;
+        }))
+      .force('charge', d3.forceManyBody()
+        .strength(function(d) {
+          return d.id === ava.id ? -400 : -180;
+        }))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(function(d) {
+        return d.id === ava.id ? 50 : 35;
+      }))
+      .force('radial', d3.forceRadial(function(d) {
+        // Pull people toward rings based on generation distance from Ava
+        return d.generation * 120;
+      }, width / 2, height / 2).strength(0.3));
 
-      // Render direct ancestors
-      direct.forEach(function(m) {
-        peopleDiv.appendChild(createPersonNode(m, false));
+    // Clip paths for photos
+    nodes.forEach(function(n) {
+      var r = n.id === ava.id ? 32 : (n.generation <= 1 ? 22 : 18);
+      defs.append('clipPath')
+        .attr('id', 'net-clip-' + n.id)
+        .append('circle')
+        .attr('r', r);
+    });
+
+    // Generation ring guides (subtle)
+    [1, 2, 3, 4].forEach(function(gen) {
+      g.append('circle')
+        .attr('cx', width / 2).attr('cy', height / 2)
+        .attr('r', gen * 120)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--border-light)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4 6')
+        .attr('opacity', 0.5);
+    });
+
+    // Links
+    var linkElements = g.selectAll('.net-link').data(links).join('line')
+      .attr('class', 'net-link')
+      .attr('stroke', function(d) {
+        return d.type === 'spouse' ? 'var(--accent)' : 'var(--border)';
+      })
+      .attr('stroke-width', function(d) { return d.type === 'spouse' ? 1.5 : 1; })
+      .attr('stroke-dasharray', function(d) { return d.type === 'spouse' ? '4 3' : 'none'; })
+      .attr('opacity', 0.4);
+
+    // Node groups
+    var nodeElements = g.selectAll('.net-node').data(nodes).join('g')
+      .attr('class', function(d) { return 'net-node ' + (d.side || ''); })
+      .style('cursor', 'pointer')
+      .on('click', function(event, d) { openPersonModal(d.data); })
+      .call(d3.drag()
+        .on('start', function(event, d) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
+        .on('drag', function(event, d) {
+          d.fx = event.x; d.fy = event.y;
+        })
+        .on('end', function(event, d) {
+          if (!event.active) simulation.alphaTarget(0);
+          // Keep Ava pinned, release others
+          if (d.id !== ava.id) { d.fx = null; d.fy = null; }
+        }));
+
+    // Background circles
+    nodeElements.append('circle')
+      .attr('r', function(d) { return d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18); })
+      .attr('fill', 'var(--bg-card)')
+      .attr('stroke', function(d) {
+        if (d.id === ava.id) return '#d4a84b';
+        if (d.side === 'maternal') return 'var(--maternal)';
+        if (d.side === 'paternal') return 'var(--paternal)';
+        return 'var(--border)';
+      })
+      .attr('stroke-width', function(d) { return d.id === ava.id ? 3 : 1.5; });
+
+    // Photos or initials
+    nodeElements.each(function(d) {
+      var node = d3.select(this);
+      var r = d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18);
+
+      function showInitial() {
+        node.append('text')
+          .attr('dy', '0.35em').attr('text-anchor', 'middle')
+          .attr('font-size', d.id === ava.id ? '18px' : (r > 20 ? '13px' : '11px'))
+          .attr('font-weight', '600').attr('pointer-events', 'none')
+          .attr('fill', d.id === ava.id ? '#b86e3a' : '#6b6054')
+          .text(d.name.charAt(0));
+      }
+
+      if (d.photo) {
+        var testImg = new Image();
+        testImg.onload = function() {
+          node.append('image')
+            .attr('href', 'photos/' + d.photo)
+            .attr('x', -r).attr('y', -r)
+            .attr('width', r * 2).attr('height', r * 2)
+            .attr('clip-path', 'url(#net-clip-' + d.id + ')')
+            .attr('preserveAspectRatio', 'xMidYMid slice')
+            .attr('pointer-events', 'none');
+        };
+        testImg.onerror = showInitial;
+        testImg.src = 'photos/' + d.photo;
+      } else {
+        showInitial();
+      }
+    });
+
+    // Ava golden outer ring
+    nodeElements.filter(function(d) { return d.id === ava.id; })
+      .append('circle').attr('r', 36)
+      .attr('fill', 'none').attr('stroke', '#d4a84b')
+      .attr('stroke-width', 2).attr('opacity', 0.5);
+
+    // Name labels
+    nodeElements.append('text')
+      .attr('dy', function(d) { return (d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18)) + 14; })
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'Outfit, sans-serif')
+      .attr('font-size', function(d) { return d.id === ava.id ? '12px' : '9px'; })
+      .attr('font-weight', function(d) { return d.id === ava.id ? '600' : '400'; })
+      .attr('fill', 'var(--text-secondary)')
+      .attr('pointer-events', 'none')
+      .text(function(d) {
+        var parts = d.name.split(' ');
+        return parts[0];
       });
 
-      // Render extended family with show more toggle
-      if (extended.length > 0) {
-        var toggleBtn = document.createElement('button');
-        toggleBtn.className = 'show-more-btn';
-        toggleBtn.textContent = '+ ' + extended.length + ' more';
-        toggleBtn.setAttribute('data-expanded', 'false');
-
-        var extendedDiv = document.createElement('div');
-        extendedDiv.className = 'extended-family';
-        extendedDiv.style.display = 'none';
-
-        extended.forEach(function(m) {
-          extendedDiv.appendChild(createPersonNode(m, false, true));
+    // Hover: show full name + highlight connections
+    nodeElements
+      .on('mouseenter', function(event, d) {
+        // Highlight connected links
+        linkElements.attr('opacity', function(l) {
+          return (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.1;
+        }).attr('stroke-width', function(l) {
+          return (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 1;
         });
-
-        toggleBtn.addEventListener('click', function() {
-          var expanded = this.getAttribute('data-expanded') === 'true';
-          if (expanded) {
-            extendedDiv.style.display = 'none';
-            this.textContent = '+ ' + extended.length + ' more';
-            this.setAttribute('data-expanded', 'false');
-          } else {
-            extendedDiv.style.display = 'flex';
-            this.textContent = '− show less';
-            this.setAttribute('data-expanded', 'true');
-          }
-        });
-
-        peopleDiv.appendChild(toggleBtn);
-        peopleDiv.appendChild(extendedDiv);
-      }
-
-      // Also show people with generation 0 who are cousins (not Ava)
-      if (gen === 1) {
-        var cousinsGen = allMembers.filter(function(m) {
-          return m.generation === 0 && m.id !== ava.id;
-        });
-        if (cousinsGen.length > 0) {
-          // Add a cousins row after parents
-          var cousinsRow = createGenRow('Cousins & Siblings', 0.5);
-          var cousinsPeople = cousinsRow.querySelector('.gen-people');
-          cousinsGen.forEach(function(m) {
-            cousinsPeople.appendChild(createPersonNode(m, false, true));
+        // Fade unconnected nodes
+        nodeElements.attr('opacity', function(n) {
+          if (n.id === d.id) return 1;
+          var connected = links.some(function(l) {
+            return (l.source.id === d.id && l.target.id === n.id) ||
+                   (l.target.id === d.id && l.source.id === n.id);
           });
-          // We'll append this after the current row
-          row._cousinsRow = cousinsRow;
-        }
-      }
+          return connected ? 1 : 0.25;
+        });
+      })
+      .on('mouseleave', function() {
+        linkElements.attr('opacity', 0.4).attr('stroke-width', function(d) {
+          return d.type === 'spouse' ? 1.5 : 1;
+        });
+        nodeElements.attr('opacity', 1);
+      });
 
-      wrapper.appendChild(row);
-      if (row._cousinsRow) wrapper.appendChild(row._cousinsRow);
-    }
+    // Tick
+    simulation.on('tick', function() {
+      linkElements
+        .attr('x1', function(d) { return d.source.x; })
+        .attr('y1', function(d) { return d.source.y; })
+        .attr('x2', function(d) { return d.target.x; })
+        .attr('y2', function(d) { return d.target.y; });
 
-    container.appendChild(wrapper);
+      nodeElements.attr('transform', function(d) {
+        return 'translate(' + d.x + ',' + d.y + ')';
+      });
+    });
 
-    // ─── Helper: get IDs of direct ancestors ───
-    function getDirectAncestorIds() {
-      var ids = new Set();
-      var current = ava;
-      ids.add(current.id);
+    // Zoom & pan
+    var zoom = d3.zoom().scaleExtent([0.3, 3])
+      .on('zoom', function(event) { g.attr('transform', event.transform); });
+    svg.call(zoom);
 
-      function traceUp(person) {
-        if (!person || !person.parent_id) return;
-        var parent = allMembers.find(function(m) { return m.id === person.parent_id; });
-        if (parent && !ids.has(parent.id)) {
-          ids.add(parent.id);
-          // Also add spouse
-          if (parent.spouse_id) ids.add(parent.spouse_id);
-          var spouse = allMembers.find(function(m) { return m.id === parent.spouse_id; });
-          if (spouse) {
-            ids.add(spouse.id);
-            traceUp(spouse);
-          }
-          traceUp(parent);
-        }
-      }
-
-      traceUp(ava);
-      return ids;
-    }
-
-    // ─── Helper: create generation row ───
-    function createGenRow(label, gen) {
-      var row = document.createElement('div');
-      row.className = 'gen-row';
-
-      // Connector line from above
-      if (gen > 0 || gen === 0.5) {
-        var connector = document.createElement('div');
-        connector.className = 'gen-connector';
-        row.appendChild(connector);
-      }
-
-      if (label && gen !== -1) {
-        var labelEl = document.createElement('div');
-        labelEl.className = 'gen-label';
-        labelEl.textContent = label;
-        row.appendChild(labelEl);
-      }
-
-      var people = document.createElement('div');
-      people.className = 'gen-people';
-      row.appendChild(people);
-
-      return row;
-    }
-
-    // ─── Helper: create person node ───
-    function createPersonNode(person, isAva, isExtended) {
-      var node = document.createElement('div');
-      node.className = 'gen-person' + (isAva ? ' is-ava' : '') + (isExtended ? ' is-extended' : '');
-      node.addEventListener('click', function() { openPersonModal(person); });
-
-      var size = isAva ? 72 : (isExtended ? 48 : 56);
-      var placeholder = getPlaceholderAvatar(person);
-      var photoSrc = person.photo ? 'photos/' + person.photo : placeholder;
-
-      var spouse = person.spouse_id ? allMembers.find(function(m) { return m.id === person.spouse_id; }) : null;
-      // Also check reverse
-      if (!spouse) {
-        spouse = allMembers.find(function(m) { return m.spouse_id === person.id; });
-      }
-
-      var spouseHtml = spouse ? '<div class="gen-person-spouse">+ ' + spouse.name.split(' ')[0] + '</div>' : '';
-
-      node.innerHTML =
-        '<img class="gen-person-photo" src="' + photoSrc + '" alt="' + person.name + '" ' +
-        'style="width:' + size + 'px;height:' + size + 'px;" ' +
-        'onerror="this.src=\'' + placeholder + '\'">' +
-        '<div class="gen-person-name">' + person.name.split(' ').slice(0, 2).join(' ') + '</div>' +
-        '<div class="gen-person-relation">' + formatRelation(person.relation) + '</div>' +
-        spouseHtml;
-
-      return node;
-    }
+    // Let simulation settle then stop
+    simulation.alpha(1).restart();
+    setTimeout(function() { simulation.alphaTarget(0); }, 3000);
   }
 
   // ─── RADIAL VIEW ───
