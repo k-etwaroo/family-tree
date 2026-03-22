@@ -484,125 +484,131 @@ body::before {
 .sibling-node:hover { opacity: 1 !important; }
 .sibling-node circle { stroke-dasharray: 3 2; }
 
-/* ─── Generation Row Tree ─── */
-.gen-tree {
-  max-width: 1000px;
+/* ─── Family Explorer ─── */
+.explorer, .pedigree-view, .person-explorer {
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px 0 40px;
-}
-.gen-row {
   text-align: center;
-  margin-bottom: 8px;
 }
-.gen-connector {
+.explorer-connector {
   width: 2px;
-  height: 24px;
+  height: 28px;
   background: var(--border);
-  margin: 0 auto;
+  margin: 4px auto;
 }
-.gen-label {
+.explorer-label {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--accent);
-  margin: 8px 0 12px;
+  margin: 12px 0 14px;
 }
-.gen-people {
+.explorer-row {
   display: flex;
   justify-content: center;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
 }
-.gen-person {
+.explorer-person {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   cursor: pointer;
-  padding: 8px 12px;
+  padding: 12px 16px;
   border-radius: var(--radius);
   transition: all 0.25s var(--ease);
-  max-width: 120px;
+  max-width: 140px;
+  position: relative;
 }
-.gen-person:hover {
+.explorer-person:hover {
   background: var(--accent-light);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
-.gen-person.is-ava {
-  max-width: 160px;
+.explorer-person.is-focus {
+  cursor: default;
 }
-.gen-person.is-ava .gen-person-name {
-  font-size: 15px;
-  font-weight: 700;
+.explorer-person.is-focus:hover {
+  background: transparent;
+  transform: none;
+  box-shadow: none;
 }
-.gen-person.is-extended {
-  opacity: 0.8;
-}
-.gen-person.is-extended:hover {
-  opacity: 1;
-}
-.gen-person-photo {
+.explorer-photo {
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid var(--bg-card);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s, box-shadow 0.2s;
   background: var(--bg-warm);
+  transition: transform 0.25s var(--ease);
 }
-.gen-person:hover .gen-person-photo {
-  transform: scale(1.08);
-  box-shadow: var(--shadow-md);
+.explorer-person:hover .explorer-photo {
+  transform: scale(1.06);
 }
-.is-ava .gen-person-photo {
+.is-focus .explorer-photo {
   border-color: #d4a84b;
-  box-shadow: 0 0 0 3px rgba(212,168,75,0.2), var(--shadow-sm);
+  box-shadow: 0 0 0 4px rgba(212,168,75,0.2), var(--shadow-md);
 }
-.gen-person-name {
+.explorer-name {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
   text-align: center;
 }
-.gen-person-relation {
-  font-size: 10px;
+.is-focus .explorer-name {
+  font-size: 18px;
+}
+.explorer-relation {
+  font-size: 11px;
   color: var(--text-muted);
 }
-.gen-person-spouse {
-  font-size: 9px;
+.explorer-person-spouse {
+  font-size: 10px;
   color: var(--text-muted);
   font-style: italic;
 }
-.show-more-btn {
-  align-self: center;
-  padding: 6px 16px;
-  border: 1.5px dashed var(--border);
+.explorer-child-badge {
+  font-size: 9px;
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 2px 8px;
   border-radius: 100px;
-  background: transparent;
-  font-family: var(--font-body);
-  font-size: 12px;
   font-weight: 500;
-  color: var(--text-muted);
+  margin-top: 2px;
+}
+.explorer-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: 1.5px solid var(--border);
+  border-radius: 100px;
+  background: var(--bg-card);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
-  margin: 4px 0;
+  margin-bottom: 20px;
 }
-.show-more-btn:hover {
+.explorer-back-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-light);
 }
-.extended-family {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 8px;
-  animation: viewFadeIn 0.3s var(--ease);
+
+@media (max-width: 600px) {
+  .explorer-row { gap: 10px; }
+  .explorer-person { padding: 8px 10px; max-width: 110px; }
+  .explorer-name { font-size: 12px; }
+  .is-focus .explorer-name { font-size: 15px; }
 }
 
 /* Card stagger animation */
@@ -1961,7 +1967,9 @@ body::before {
   //  Each one hides the loading skeleton and draws
   // ═══════════════════════════════════════════════
 
-  // ─── TREE VIEW (Network graph — Ava at center) ───
+  // ─── TREE VIEW (Family Explorer — click to navigate) ───
+  var explorerFocusId = null;
+
   function renderTree() {
     var container = document.getElementById('tree-canvas');
     var loading = document.getElementById('loading-tree');
@@ -1970,247 +1978,228 @@ body::before {
     if (loading) loading.style.display = 'none';
     container.innerHTML = '';
 
-    var width = container.clientWidth || 900;
-    var height = Math.max(650, window.innerHeight - 200);
+    var ava = allMembers.find(function(m) { return m.relation === 'self'; }) || allMembers[0];
+    var focusId = explorerFocusId || ava.id;
+    var focusPerson = allMembers.find(function(m) { return m.id === focusId; }) || ava;
 
-    var svg = d3.select(container).append('svg')
-      .attr('viewBox', '0 0 ' + width + ' ' + height)
-      .attr('preserveAspectRatio', 'xMidYMid meet');
+    var wrapper = document.createElement('div');
+    wrapper.className = 'explorer';
 
-    var g = svg.append('g');
-    var defs = svg.append('defs');
+    // ─── If viewing Ava (default), show pedigree: Ava → Parents → Grandparents → Great-Grandparents ───
+    if (focusPerson.id === ava.id) {
+      wrapper.appendChild(buildPedigreeView(ava));
+    } else {
+      // ─── Viewing someone else: show their family context ───
+      wrapper.appendChild(buildPersonExplorer(focusPerson, ava));
+    }
 
-    // Build nodes and links from flat member data
-    var ava = allMembers.find(function(m) { return m.generation === 0 && m.relation === 'self'; }) || allMembers[0];
+    container.appendChild(wrapper);
+  }
 
-    var nodes = allMembers.map(function(m) {
-      return {
-        id: m.id,
-        name: m.name,
-        relation: m.relation,
-        side: m.side,
-        generation: m.generation || 0,
-        photo: m.photo,
-        data: m,
-        // Pin Ava to center
-        fx: m.id === ava.id ? width / 2 : undefined,
-        fy: m.id === ava.id ? height / 2 : undefined
-      };
+  // ─── Ava's Pedigree View (default) ───
+  function buildPedigreeView(ava) {
+    var div = document.createElement('div');
+    div.className = 'pedigree-view';
+
+    // Ava
+    div.appendChild(makeExplorerSection('', [ava], true));
+
+    // Parents
+    var parents = getParents(ava);
+    if (parents.length) {
+      div.appendChild(makeConnector());
+      div.appendChild(makeSectionLabel('Parents'));
+      div.appendChild(makeExplorerSection('', parents, false));
+    }
+
+    // Grandparents
+    var grandparents = [];
+    parents.forEach(function(p) {
+      getParents(p).forEach(function(gp) {
+        if (!grandparents.find(function(x) { return x.id === gp.id; })) grandparents.push(gp);
+      });
     });
+    if (grandparents.length) {
+      div.appendChild(makeConnector());
+      div.appendChild(makeSectionLabel('Grandparents'));
+      div.appendChild(makeExplorerSection('', grandparents, false));
+    }
 
-    var links = [];
+    // Great-grandparents
+    var greats = [];
+    grandparents.forEach(function(gp) {
+      getParents(gp).forEach(function(ggp) {
+        if (!greats.find(function(x) { return x.id === ggp.id; })) greats.push(ggp);
+      });
+    });
+    if (greats.length) {
+      div.appendChild(makeConnector());
+      div.appendChild(makeSectionLabel('Great-Grandparents'));
+      div.appendChild(makeExplorerSection('', greats, false));
+    }
 
-    // Create links: parent_id connections + both parents
-    allMembers.forEach(function(m) {
-      if (m.parent_id) {
-        var parent = allMembers.find(function(p) { return p.id === m.parent_id; });
-        if (parent) {
-          links.push({ source: m.id, target: m.parent_id, type: 'parent' });
-          // Also link to the other parent (spouse of parent_id)
-          if (parent.spouse_id) {
-            var otherParent = nodes.find(function(n) { return n.id === parent.spouse_id; });
-            if (otherParent) {
-              links.push({ source: m.id, target: parent.spouse_id, type: 'parent' });
-            }
-          }
+    return div;
+  }
+
+  // ─── Person Explorer (when clicking someone) ───
+  function buildPersonExplorer(person, ava) {
+    var div = document.createElement('div');
+    div.className = 'person-explorer';
+
+    // Back to Ava button
+    var backBtn = document.createElement('button');
+    backBtn.className = 'explorer-back-btn';
+    backBtn.innerHTML = '&larr; Back to Ava';
+    backBtn.addEventListener('click', function() {
+      explorerFocusId = null;
+      renderTree();
+    });
+    div.appendChild(backBtn);
+
+    // Focused person (large)
+    div.appendChild(makeExplorerSection('', [person], true));
+
+    // Their parents
+    var parents = getParents(person);
+    if (parents.length) {
+      div.appendChild(makeConnector());
+      div.appendChild(makeSectionLabel('Parents'));
+      div.appendChild(makeExplorerSection('', parents, false));
+    }
+
+    // Their spouse
+    var spouse = getSpouse(person);
+    if (spouse) {
+      div.appendChild(makeSectionLabel('Spouse'));
+      div.appendChild(makeExplorerSection('', [spouse], false));
+    }
+
+    // Their siblings
+    var siblings = getSiblings(person);
+    if (siblings.length) {
+      div.appendChild(makeSectionLabel('Siblings'));
+      div.appendChild(makeExplorerSection('', siblings, false));
+    }
+
+    // Their children
+    var children = getChildren(person);
+    if (children.length) {
+      div.appendChild(makeConnector());
+      div.appendChild(makeSectionLabel('Children'));
+      div.appendChild(makeExplorerSection('', children, false));
+    }
+
+    return div;
+  }
+
+  // ─── Helpers ───
+  function getParents(person) {
+    var results = [];
+    if (person.parent_id) {
+      var parent = allMembers.find(function(m) { return m.id === person.parent_id; });
+      if (parent) {
+        results.push(parent);
+        var parentSpouse = allMembers.find(function(m) { return m.id === parent.spouse_id; });
+        if (parentSpouse) results.push(parentSpouse);
+        // Check reverse spouse
+        if (!parentSpouse) {
+          parentSpouse = allMembers.find(function(m) { return m.spouse_id === parent.id && m.id !== person.id; });
+          if (parentSpouse) results.push(parentSpouse);
         }
       }
-      // Spouse connections
-      if (m.spouse_id) {
-        // Only add one direction to avoid duplicates
-        if (m.id < m.spouse_id) {
-          var spouseNode = nodes.find(function(n) { return n.id === m.spouse_id; });
-          if (spouseNode) {
-            links.push({ source: m.id, target: m.spouse_id, type: 'spouse' });
-          }
+    }
+    return results;
+  }
+
+  function getSpouse(person) {
+    if (person.spouse_id) {
+      return allMembers.find(function(m) { return m.id === person.spouse_id; }) || null;
+    }
+    // Check if someone lists this person as their spouse
+    var reverseSpouse = allMembers.find(function(m) { return m.spouse_id === person.id; });
+    return reverseSpouse || null;
+  }
+
+  function getSiblings(person) {
+    if (!person.parent_id) return [];
+    return allMembers.filter(function(m) {
+      return m.parent_id === person.parent_id && m.id !== person.id;
+    });
+  }
+
+  function getChildren(person) {
+    var kids = allMembers.filter(function(m) { return m.parent_id === person.id; });
+    // Also get children of spouse
+    var spouse = getSpouse(person);
+    if (spouse) {
+      allMembers.forEach(function(m) {
+        if (m.parent_id === spouse.id && !kids.find(function(k) { return k.id === m.id; })) {
+          kids.push(m);
         }
-      }
-    });
+      });
+    }
+    return kids;
+  }
 
-    // Force simulation
-    var simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(function(d) { return d.id; })
-        .distance(function(d) {
-          if (d.type === 'spouse') return 50;
-          return 80 + d.source.generation * 15;
-        })
-        .strength(function(d) {
-          return d.type === 'spouse' ? 1.2 : 0.7;
-        }))
-      .force('charge', d3.forceManyBody()
-        .strength(function(d) {
-          return d.id === ava.id ? -400 : -180;
-        }))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(function(d) {
-        return d.id === ava.id ? 50 : 35;
-      }))
-      .force('radial', d3.forceRadial(function(d) {
-        // Pull people toward rings based on generation distance from Ava
-        return d.generation * 120;
-      }, width / 2, height / 2).strength(0.3));
+  function makeConnector() {
+    var c = document.createElement('div');
+    c.className = 'explorer-connector';
+    return c;
+  }
 
-    // Clip paths for photos
-    nodes.forEach(function(n) {
-      var r = n.id === ava.id ? 32 : (n.generation <= 1 ? 22 : 18);
-      defs.append('clipPath')
-        .attr('id', 'net-clip-' + n.id)
-        .append('circle')
-        .attr('r', r);
-    });
+  function makeSectionLabel(text) {
+    var label = document.createElement('div');
+    label.className = 'explorer-label';
+    label.textContent = text;
+    return label;
+  }
 
-    // Generation ring guides (subtle)
-    [1, 2, 3, 4].forEach(function(gen) {
-      g.append('circle')
-        .attr('cx', width / 2).attr('cy', height / 2)
-        .attr('r', gen * 120)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--border-light)')
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4 6')
-        .attr('opacity', 0.5);
-    });
+  function makeExplorerSection(label, people, isFocus) {
+    var section = document.createElement('div');
+    section.className = 'explorer-row';
 
-    // Links
-    var linkElements = g.selectAll('.net-link').data(links).join('line')
-      .attr('class', 'net-link')
-      .attr('stroke', function(d) {
-        return d.type === 'spouse' ? 'var(--accent)' : 'var(--border)';
-      })
-      .attr('stroke-width', function(d) { return d.type === 'spouse' ? 1.5 : 1; })
-      .attr('stroke-dasharray', function(d) { return d.type === 'spouse' ? '4 3' : 'none'; })
-      .attr('opacity', 0.4);
+    people.forEach(function(person) {
+      var node = document.createElement('div');
+      node.className = 'explorer-person' + (isFocus ? ' is-focus' : '');
 
-    // Node groups
-    var nodeElements = g.selectAll('.net-node').data(nodes).join('g')
-      .attr('class', function(d) { return 'net-node ' + (d.side || ''); })
-      .style('cursor', 'pointer')
-      .on('click', function(event, d) { openPersonModal(d.data); })
-      .call(d3.drag()
-        .on('start', function(event, d) {
-          if (!event.active) simulation.alphaTarget(0.3).restart();
-          d.fx = d.x; d.fy = d.y;
-        })
-        .on('drag', function(event, d) {
-          d.fx = event.x; d.fy = event.y;
-        })
-        .on('end', function(event, d) {
-          if (!event.active) simulation.alphaTarget(0);
-          // Keep Ava pinned, release others
-          if (d.id !== ava.id) { d.fx = null; d.fy = null; }
-        }));
+      var size = isFocus ? 80 : 56;
+      var placeholder = getPlaceholderAvatar(person);
+      var photoSrc = person.photo ? 'photos/' + person.photo : placeholder;
 
-    // Background circles
-    nodeElements.append('circle')
-      .attr('r', function(d) { return d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18); })
-      .attr('fill', 'var(--bg-card)')
-      .attr('stroke', function(d) {
-        if (d.id === ava.id) return '#d4a84b';
-        if (d.side === 'maternal') return 'var(--maternal)';
-        if (d.side === 'paternal') return 'var(--paternal)';
-        return 'var(--border)';
-      })
-      .attr('stroke-width', function(d) { return d.id === ava.id ? 3 : 1.5; });
-
-    // Photos or initials
-    nodeElements.each(function(d) {
-      var node = d3.select(this);
-      var r = d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18);
-
-      function showInitial() {
-        node.append('text')
-          .attr('dy', '0.35em').attr('text-anchor', 'middle')
-          .attr('font-size', d.id === ava.id ? '18px' : (r > 20 ? '13px' : '11px'))
-          .attr('font-weight', '600').attr('pointer-events', 'none')
-          .attr('fill', d.id === ava.id ? '#b86e3a' : '#6b6054')
-          .text(d.name.charAt(0));
+      var spouseInfo = '';
+      var spouse = getSpouse(person);
+      if (spouse && !isFocus) {
+        spouseInfo = '<div class="explorer-person-spouse">+ ' + spouse.name.split(' ')[0] + '</div>';
       }
 
-      if (d.photo) {
-        var testImg = new Image();
-        testImg.onload = function() {
-          node.append('image')
-            .attr('href', 'photos/' + d.photo)
-            .attr('x', -r).attr('y', -r)
-            .attr('width', r * 2).attr('height', r * 2)
-            .attr('clip-path', 'url(#net-clip-' + d.id + ')')
-            .attr('preserveAspectRatio', 'xMidYMid slice')
-            .attr('pointer-events', 'none');
-        };
-        testImg.onerror = showInitial;
-        testImg.src = 'photos/' + d.photo;
-      } else {
-        showInitial();
+      var childCount = getChildren(person).length;
+      var childBadge = '';
+      if (childCount > 0 && !isFocus) {
+        childBadge = '<div class="explorer-child-badge">' + childCount + ' child' + (childCount > 1 ? 'ren' : '') + '</div>';
       }
+
+      node.innerHTML =
+        '<img class="explorer-photo" src="' + photoSrc + '" alt="' + person.name + '" ' +
+        'style="width:' + size + 'px;height:' + size + 'px;" ' +
+        'onerror="this.src=\'' + placeholder.replace(/'/g, "\\'") + '\'">' +
+        '<div class="explorer-name">' + person.name + '</div>' +
+        '<div class="explorer-relation">' + formatRelation(person.relation) + '</div>' +
+        spouseInfo + childBadge;
+
+      node.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (isFocus) {
+          openPersonModal(person);
+        } else {
+          explorerFocusId = person.id;
+          renderTree();
+        }
+      });
+
+      section.appendChild(node);
     });
 
-    // Ava golden outer ring
-    nodeElements.filter(function(d) { return d.id === ava.id; })
-      .append('circle').attr('r', 36)
-      .attr('fill', 'none').attr('stroke', '#d4a84b')
-      .attr('stroke-width', 2).attr('opacity', 0.5);
-
-    // Name labels
-    nodeElements.append('text')
-      .attr('dy', function(d) { return (d.id === ava.id ? 32 : (d.generation <= 1 ? 22 : 18)) + 14; })
-      .attr('text-anchor', 'middle')
-      .attr('font-family', 'Outfit, sans-serif')
-      .attr('font-size', function(d) { return d.id === ava.id ? '12px' : '9px'; })
-      .attr('font-weight', function(d) { return d.id === ava.id ? '600' : '400'; })
-      .attr('fill', 'var(--text-secondary)')
-      .attr('pointer-events', 'none')
-      .text(function(d) {
-        var parts = d.name.split(' ');
-        return parts[0];
-      });
-
-    // Hover: show full name + highlight connections
-    nodeElements
-      .on('mouseenter', function(event, d) {
-        // Highlight connected links
-        linkElements.attr('opacity', function(l) {
-          return (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.1;
-        }).attr('stroke-width', function(l) {
-          return (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 1;
-        });
-        // Fade unconnected nodes
-        nodeElements.attr('opacity', function(n) {
-          if (n.id === d.id) return 1;
-          var connected = links.some(function(l) {
-            return (l.source.id === d.id && l.target.id === n.id) ||
-                   (l.target.id === d.id && l.source.id === n.id);
-          });
-          return connected ? 1 : 0.25;
-        });
-      })
-      .on('mouseleave', function() {
-        linkElements.attr('opacity', 0.4).attr('stroke-width', function(d) {
-          return d.type === 'spouse' ? 1.5 : 1;
-        });
-        nodeElements.attr('opacity', 1);
-      });
-
-    // Tick
-    simulation.on('tick', function() {
-      linkElements
-        .attr('x1', function(d) { return d.source.x; })
-        .attr('y1', function(d) { return d.source.y; })
-        .attr('x2', function(d) { return d.target.x; })
-        .attr('y2', function(d) { return d.target.y; });
-
-      nodeElements.attr('transform', function(d) {
-        return 'translate(' + d.x + ',' + d.y + ')';
-      });
-    });
-
-    // Zoom & pan
-    var zoom = d3.zoom().scaleExtent([0.3, 3])
-      .on('zoom', function(event) { g.attr('transform', event.transform); });
-    svg.call(zoom);
-
-    // Let simulation settle then stop
-    simulation.alpha(1).restart();
-    setTimeout(function() { simulation.alphaTarget(0); }, 3000);
+    return section;
   }
 
   // ─── RADIAL VIEW ───
