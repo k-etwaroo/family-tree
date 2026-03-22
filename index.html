@@ -2000,12 +2000,19 @@ body::before {
 
     var links = [];
 
-    // Create links: parent_id connections
+    // Create links: parent_id connections + both parents
     allMembers.forEach(function(m) {
       if (m.parent_id) {
-        var parentNode = nodes.find(function(n) { return n.id === m.parent_id; });
-        if (parentNode) {
+        var parent = allMembers.find(function(p) { return p.id === m.parent_id; });
+        if (parent) {
           links.push({ source: m.id, target: m.parent_id, type: 'parent' });
+          // Also link to the other parent (spouse of parent_id)
+          if (parent.spouse_id) {
+            var otherParent = nodes.find(function(n) { return n.id === parent.spouse_id; });
+            if (otherParent) {
+              links.push({ source: m.id, target: parent.spouse_id, type: 'parent' });
+            }
+          }
         }
       }
       // Spouse connections
